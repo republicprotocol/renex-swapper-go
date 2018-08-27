@@ -11,11 +11,8 @@ import (
 	"github.com/republicprotocol/renex-swapper-go/services/logger"
 	"github.com/republicprotocol/renex-swapper-go/services/watchdog"
 
-	"github.com/btcsuite/btcutil"
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/republicprotocol/renex-swapper-go/adapters/atoms"
 	"github.com/republicprotocol/renex-swapper-go/adapters/blockchain/binder"
-	btcClient "github.com/republicprotocol/renex-swapper-go/adapters/blockchain/clients/btc"
 	ethClient "github.com/republicprotocol/renex-swapper-go/adapters/blockchain/clients/eth"
 	"github.com/republicprotocol/renex-swapper-go/adapters/configs/general"
 	"github.com/republicprotocol/renex-swapper-go/adapters/configs/keystore"
@@ -56,7 +53,6 @@ func main() {
 		panic(err)
 	}
 
-	log.Println("Swapper is syncing with the bitcoin node, this might take few minutes to complete")
 	net, err := network.LoadNetwork(*networkPath)
 
 	dbLoc, err := conf.StoreLocation()
@@ -130,32 +126,7 @@ func buildWatcher(gen config.Config, net network.Config, keystore keystore.Keyst
 		return nil, err
 	}
 
-	btcConn, err := btcClient.Connect(net)
-	if err != nil {
-		return nil, err
-	}
-
 	ethKey, err := keystore.GetKey(1, 0)
-	if err != nil {
-		return nil, err
-	}
-
-	btcKey, err := keystore.GetKey(0, 0)
-	if err != nil {
-		return nil, err
-	}
-
-	_WIF := btcKey.GetKeyString()
-	if err != nil {
-		return nil, err
-	}
-
-	WIF, err := btcutil.DecodeWIF(_WIF)
-	if err != nil {
-		return nil, err
-	}
-
-	err = btcConn.Client.ImportPrivKeyLabel(WIF, "Atom")
 	if err != nil {
 		return nil, err
 	}
@@ -164,9 +135,6 @@ func buildWatcher(gen config.Config, net network.Config, keystore keystore.Keyst
 	if err != nil {
 		return nil, err
 	}
-
-	owner := bind.NewKeyedTransactor(privKey)
-	owner.GasLimit = 3000000
 
 	ethBinder, err := binder.NewBinder(privKey, ethConn)
 
