@@ -3,7 +3,6 @@ package btc
 import (
 	"bytes"
 	"crypto/sha256"
-	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -183,15 +182,15 @@ func redeemP2SHContract(contract, sig, pubkey []byte, secret [32]byte) ([]byte, 
 	return b.Script()
 }
 
-func Initiate(connection btc.Conn, myKey keystore.Key, participantAddress string, value int64, hash []byte, lockTime int64) (bitcoinData, error) {
+func Initiate(conn btc.Conn, myKey keystore.Key, participantAddress string, value int64, hash []byte, lockTime int64) (bitcoinData, error) {
 	addr, err := myKey.GetAddress()
 	if err != nil {
 		return bitcoinData{}, fmt.Errorf("failed to decode your address: %v", err)
 	}
-	myAddr, err := btcutil.DecodeAddress(string(addr), connection.ChainParams)
+	myAddr, err := btcutil.DecodeAddress(string(addr), conn.ChainParams)
 	if err != nil {
 		return bitcoinData{}, fmt.Errorf("your address is not "+
-			"intended for use on %v", connection.ChainParams.Name)
+			"intended for use on %v", conn.ChainParams.Name)
 	}
 
 	myAddrP2PKH, ok := myAddr.(*btcutil.AddressPubKeyHash)
@@ -199,13 +198,13 @@ func Initiate(connection btc.Conn, myKey keystore.Key, participantAddress string
 		return bitcoinData{}, errors.New("your address is not P2PKH")
 	}
 
-	cp2Addr, err := btcutil.DecodeAddress(participantAddress, connection.ChainParams)
+	cp2Addr, err := btcutil.DecodeAddress(participantAddress, conn.ChainParams)
 	if err != nil {
 		return bitcoinData{}, fmt.Errorf("failed to decode participant address: %v", err)
 	}
-	if !cp2Addr.IsForNet(connection.ChainParams) {
+	if !cp2Addr.IsForNet(conn.ChainParams) {
 		return bitcoinData{}, fmt.Errorf("participant address is not "+
-			"intended for use on %v", connection.ChainParams.Name)
+			"intended for use on %v", conn.ChainParams.Name)
 	}
 
 	cp2AddrP2PKH, ok := cp2Addr.(*btcutil.AddressPubKeyHash)
@@ -213,7 +212,7 @@ func Initiate(connection btc.Conn, myKey keystore.Key, participantAddress string
 		return bitcoinData{}, errors.New("participant address is not P2PKH")
 	}
 
-	b, err := buildContract(connection, &contractArgs{
+	b, err := buildContract(conn, &contractArgs{
 		me:         myAddrP2PKH,
 		them:       cp2AddrP2PKH,
 		amount:     value,
@@ -225,7 +224,7 @@ func Initiate(connection btc.Conn, myKey keystore.Key, participantAddress string
 		return bitcoinData{}, err
 	}
 
-	// redeemSig, redeemPubKey, err := createSig(connection, redeemTx, 0, contract, myAddr)
+	// redeemSig, redeemPubKey, err := createSig(conn, redeemTx, 0, contract, myAddr)
 
 	var contractBuf bytes.Buffer
 	contractBuf.Grow(b.contractTx.SerializeSize())
@@ -235,12 +234,10 @@ func Initiate(connection btc.Conn, myKey keystore.Key, participantAddress string
 	refundBuf.Grow(b.refundTx.SerializeSize())
 	b.refundTx.Serialize(&refundBuf)
 
-	txHash, err := connection.PromptPublishTx(b.contractTx, "contract")
+	txHash, err := conn.PromptPublishTx(b.contractTx, "contract")
 	if err != nil {
 		return bitcoinData{}, err
 	}
-
-	connection.WaitForConfirmations(txHash, 1)
 
 	refundTx := *b.refundTx
 	return bitcoinData{
@@ -250,10 +247,10 @@ func Initiate(connection btc.Conn, myKey keystore.Key, participantAddress string
 		ContractTxHash: txHash.CloneBytes(),
 		RefundTx:       refundBuf.Bytes(),
 		RefundTxHash:   refundTx.TxHash(),
-	}, nil
+	}, conn.WaitTillMined(txHash, 0)
 }
 
-func Redeem(connection btc.Conn, myKey keystore.Key, contract, contractTxBytes []byte, secret [32]byte) (redeemResult, error) {
+func Redeem(conn btc.Conn, myKey keystore.Key, contract, contractTxBytes []byte, secret [32]byte) (redeemResult, error) {
 	var contractTx wire.MsgTx
 	err := contractTx.Deserialize(bytes.NewReader(contractTxBytes))
 	if err != nil {
@@ -267,14 +264,14 @@ func Redeem(connection btc.Conn, myKey keystore.Key, contract, contractTxBytes [
 	if pushes == nil {
 		return redeemResult{}, errors.New("contract is not an atomic swap script recognized by this tool")
 	}
-	recipientAddr, err := btcutil.NewAddressPubKeyHash(pushes.RecipientHash160[:], connection.ChainParams)
+	recipientAddr, err := btcutil.NewAddressPubKeyHash(pushes.RecipientHash160[:], conn.ChainParams)
 	if err != nil {
 		return redeemResult{}, err
 	}
 	contractHash := btcutil.Hash160(contract)
 	contractOut := -1
 	for i, out := range contractTx.TxOut {
-		sc, addrs, _, _ := txscript.ExtractPkScriptAddrs(out.PkScript, connection.ChainParams)
+		sc, addrs, _, _ := txscript.ExtractPkScriptAddrs(out.PkScript, conn.ChainParams)
 		if sc == txscript.ScriptHashTy &&
 			bytes.Equal(addrs[0].(*btcutil.AddressScriptHash).Hash160()[:], contractHash) {
 			contractOut = i
@@ -294,7 +291,7 @@ func Redeem(connection btc.Conn, myKey keystore.Key, contract, contractTxBytes [
 		return redeemResult{}, fmt.Errorf("Reciepient Address Mismatch")
 	}
 
-	addr, err := btcutil.DecodeAddress(string(myAddress), connection.ChainParams)
+	addr, err := btcutil.DecodeAddress(string(myAddress), conn.ChainParams)
 	if err != nil {
 		return redeemResult{}, fmt.Errorf("Decoded Address: %v", err)
 	}
@@ -316,7 +313,7 @@ func Redeem(connection btc.Conn, myKey keystore.Key, contract, contractTxBytes [
 	redeemTx.AddTxIn(wire.NewTxIn(&contractOutPoint, nil, nil))
 	redeemTx.AddTxOut(wire.NewTxOut(contractTx.TxOut[contractOut].Value-10000, outScript))
 
-	redeemSig, redeemPubKey, err := createSig(connection, redeemTx, 0, contract, myKey)
+	redeemSig, redeemPubKey, err := createSig(conn, redeemTx, 0, contract, myKey)
 	if err != nil {
 		return redeemResult{}, err
 	}
@@ -345,20 +342,19 @@ func Redeem(connection btc.Conn, myKey keystore.Key, contract, contractTxBytes [
 		}
 	}
 
-	txHash, err := connection.PromptPublishTx(redeemTx, "redeem")
+	txHash, err := conn.PromptPublishTx(redeemTx, "redeem")
 	if err != nil {
 		return redeemResult{}, err
 	}
 
-	connection.WaitForConfirmations(txHash, 1)
-
 	return redeemResult{
 		RedeemTx:     buf.Bytes(),
 		RedeemTxHash: redeemTxHash,
-	}, nil
+	}, conn.WaitTillMined(txHash, 0)
+
 }
 
-func Refund(connection btc.Conn, myKey keystore.Key, contract, contractTxBytes []byte) error {
+func Refund(conn btc.Conn, myKey keystore.Key, contract, contractTxBytes []byte) error {
 
 	var contractTx wire.MsgTx
 	err := contractTx.Deserialize(bytes.NewReader(contractTxBytes))
@@ -374,22 +370,20 @@ func Refund(connection btc.Conn, myKey keystore.Key, contract, contractTxBytes [
 		return errors.New("contract is not an atomic swap script recognized by this tool")
 	}
 
-	refundTx, err := buildRefund(connection, myKey, contract, &contractTx)
+	refundTx, err := buildRefund(conn, myKey, contract, &contractTx)
 	if err != nil {
 		return err
 	}
 
-	txHash, err := connection.PromptPublishTx(refundTx, "refund")
+	txHash, err := conn.PromptPublishTx(refundTx, "refund")
 	if err != nil {
 		return err
 	}
 
-	connection.WaitForConfirmations(txHash, 1)
-
-	return nil
+	return conn.WaitTillMined(txHash, 0)
 }
 
-func Audit(connection btc.Conn, contract, contractTxBytes []byte) (readResult, error) {
+func Audit(conn btc.Conn, contract, contractTxBytes []byte) (readResult, error) {
 
 	var contractTx wire.MsgTx
 	err := contractTx.Deserialize(bytes.NewReader(contractTxBytes))
@@ -401,7 +395,7 @@ func Audit(connection btc.Conn, contract, contractTxBytes []byte) (readResult, e
 	contractOut := -1
 
 	for i, out := range contractTx.TxOut {
-		sc, addrs, _, err := txscript.ExtractPkScriptAddrs(out.PkScript, connection.ChainParams)
+		sc, addrs, _, err := txscript.ExtractPkScriptAddrs(out.PkScript, conn.ChainParams)
 		if err != nil || sc != txscript.ScriptHashTy {
 			continue
 		}
@@ -422,17 +416,17 @@ func Audit(connection btc.Conn, contract, contractTxBytes []byte) (readResult, e
 		return readResult{}, errors.New("contract is not an atomic swap script recognized by this tool")
 	}
 
-	contractAddr, err := btcutil.NewAddressScriptHash(contract, connection.ChainParams)
+	contractAddr, err := btcutil.NewAddressScriptHash(contract, conn.ChainParams)
 	if err != nil {
 		return readResult{}, err
 	}
 	recipientAddr, err := btcutil.NewAddressPubKeyHash(pushes.RecipientHash160[:],
-		connection.ChainParams)
+		conn.ChainParams)
 	if err != nil {
 		return readResult{}, err
 	}
 	refundAddr, err := btcutil.NewAddressPubKeyHash(pushes.RefundHash160[:],
-		connection.ChainParams)
+		conn.ChainParams)
 	if err != nil {
 		return readResult{}, err
 	}
@@ -447,7 +441,7 @@ func Audit(connection btc.Conn, contract, contractTxBytes []byte) (readResult, e
 	}, nil
 }
 
-func AuditSecret(connection btc.Conn, redemptionTxBytes, secretHash []byte) ([32]byte, error) {
+func AuditSecret(conn btc.Conn, redemptionTxBytes, secretHash []byte) ([32]byte, error) {
 	var redemptionTx wire.MsgTx
 	err := redemptionTx.Deserialize(bytes.NewReader(redemptionTxBytes))
 	if err != nil {
@@ -505,13 +499,13 @@ func sha256Hash(x []byte) []byte {
 	return h[:]
 }
 
-func buildContract(connection btc.Conn, args *contractArgs, key keystore.Key) (*builtContract, error) {
+func buildContract(conn btc.Conn, args *contractArgs, key keystore.Key) (*builtContract, error) {
 	contract, err := atomicSwapContract(args.me.Hash160(), args.them.Hash160(),
 		args.locktime, args.secretHash)
 	if err != nil {
 		return nil, err
 	}
-	contractP2SH, err := btcutil.NewAddressScriptHash(contract, connection.ChainParams)
+	contractP2SH, err := btcutil.NewAddressScriptHash(contract, conn.ChainParams)
 	if err != nil {
 		return nil, err
 	}
@@ -523,7 +517,7 @@ func buildContract(connection btc.Conn, args *contractArgs, key keystore.Key) (*
 	unsignedContract := wire.NewMsgTx(txVersion)
 	unsignedContract.AddTxOut(wire.NewTxOut(int64(args.amount), contractP2SHPkScript))
 
-	contractTx, complete, err := connection.SignTransaction(unsignedContract, key)
+	contractTx, complete, err := conn.SignTransaction(unsignedContract, key)
 	if err != nil {
 		return nil, fmt.Errorf("signrawtransaction: %v", err)
 	}
@@ -533,7 +527,7 @@ func buildContract(connection btc.Conn, args *contractArgs, key keystore.Key) (*
 
 	contractTxHash := contractTx.TxHash()
 
-	refundTx, err := buildRefund(connection, key, contract, contractTx)
+	refundTx, err := buildRefund(conn, key, contract, contractTx)
 	if err != nil {
 		return nil, err
 	}
@@ -547,31 +541,10 @@ func buildContract(connection btc.Conn, args *contractArgs, key keystore.Key) (*
 	}, nil
 }
 
-func getRawChangeAddress(connection btc.Conn) (btcutil.Address, error) {
-	rawResp, err := connection.Client.RawRequest("getrawchangeaddress", nil)
-	if err != nil {
-		return nil, err
-	}
-	var addrStr string
-	err = json.Unmarshal(rawResp, &addrStr)
-	if err != nil {
-		return nil, err
-	}
-	addr, err := btcutil.DecodeAddress(addrStr, connection.ChainParams)
-	if err != nil {
-		return nil, err
-	}
-	if !addr.IsForNet(connection.ChainParams) {
-		return nil, fmt.Errorf("address %v is not intended for use on %v",
-			addrStr, connection.ChainParams.Name)
-	}
-	return addr, nil
-}
-
-func buildRefund(connection btc.Conn, key keystore.Key, contract []byte, contractTx *wire.MsgTx) (
+func buildRefund(conn btc.Conn, key keystore.Key, contract []byte, contractTx *wire.MsgTx) (
 	refundTx *wire.MsgTx, err error) {
 
-	contractP2SH, err := btcutil.NewAddressScriptHash(contract, connection.ChainParams)
+	contractP2SH, err := btcutil.NewAddressScriptHash(contract, conn.ChainParams)
 	if err != nil {
 		return nil, err
 	}
@@ -597,7 +570,7 @@ func buildRefund(connection btc.Conn, key keystore.Key, contract []byte, contrac
 		return nil, err
 	}
 
-	refundAddress, err := btcutil.DecodeAddress(string(addr), connection.ChainParams)
+	refundAddress, err := btcutil.DecodeAddress(string(addr), conn.ChainParams)
 	if err != nil {
 		return nil, err
 	}
@@ -615,7 +588,7 @@ func buildRefund(connection btc.Conn, key keystore.Key, contract []byte, contrac
 		return nil, fmt.Errorf("failed to extract atomic swap data")
 	}
 
-	refundAddr, err := btcutil.NewAddressPubKeyHash(pushes.RefundHash160[:], connection.ChainParams)
+	refundAddr, err := btcutil.NewAddressPubKeyHash(pushes.RefundHash160[:], conn.ChainParams)
 	if err != nil {
 		return nil, err
 	}
@@ -632,7 +605,7 @@ func buildRefund(connection btc.Conn, key keystore.Key, contract []byte, contrac
 	txIn.Sequence = 0
 	refundTx.AddTxIn(txIn)
 
-	refundSig, refundPubKey, err := createSig(connection, refundTx, 0, contract, key)
+	refundSig, refundPubKey, err := createSig(conn, refundTx, 0, contract, key)
 	if err != nil {
 		return nil, err
 	}
@@ -674,7 +647,7 @@ func estimateRefundSerializeSize(contract []byte, txOuts []*wire.TxOut) int {
 		sumOutputSerializeSizes(txOuts)
 }
 
-func createSig(connection btc.Conn, tx *wire.MsgTx, idx int, pkScript []byte, key keystore.Key) (sig, pubkey []byte, err error) {
+func createSig(conn btc.Conn, tx *wire.MsgTx, idx int, pkScript []byte, key keystore.Key) (sig, pubkey []byte, err error) {
 	privKey, err := key.GetKey()
 	if err != nil {
 		return nil, nil, err
