@@ -86,7 +86,7 @@ func GetAddressForAccount(connection btcclient.Conn, name string) (btcutil.Addre
 			return nil, err
 		}
 
-		err = connection.WaitForConfirmations(tx, 10)
+		err = connection.WaitTillMined(tx, 1)
 	}
 
 	return addresses[2], err

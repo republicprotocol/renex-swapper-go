@@ -8,9 +8,7 @@ func ToBytes32(b []byte) ([32]byte, error) {
 	if len(b) != 32 {
 		return bytes32, errors.New("Length mismatch")
 	}
-	for i := range b {
-		bytes32[i] = b[i]
-	}
+	copy(bytes32[:], b[:32])
 	return bytes32, nil
 }
 
@@ -20,8 +18,6 @@ func ToBytes65(b []byte) ([65]byte, error) {
 	if len(b) != 65 {
 		return bytes65, errors.New("Length mismatch")
 	}
-	for i := range b {
-		bytes65[i] = b[i]
-	}
+	copy(bytes65[:], b[:65])
 	return bytes65, nil
 }
