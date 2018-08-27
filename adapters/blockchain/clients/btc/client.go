@@ -5,38 +5,36 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net"
+	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/btcsuite/btcd/btcec"
-	"github.com/btcsuite/btcd/txscript"
-	"github.com/btcsuite/btcutil"
-
-	"github.com/btcsuite/btcd/btcjson"
-
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
-	rpc "github.com/btcsuite/btcd/rpcclient"
+	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
+	"github.com/btcsuite/btcutil"
 	"github.com/republicprotocol/renex-swapper-go/adapters/configs/keystore"
 	"github.com/republicprotocol/renex-swapper-go/adapters/configs/network"
 )
 
 type Conn struct {
-	Client      *rpc.Client
+	URL         string
 	ChainParams *chaincfg.Params
 	Network     string
 }
 
 func Connect(networkConfig network.Config) (Conn, error) {
 	connParams := networkConfig.GetBitcoinNetwork()
-	return ConnectWithParams(connParams.Network, connParams.URL, connParams.User, connParams.Password)
+	return ConnectWithParams(connParams.Network, connParams.URL)
 }
 
-func ConnectWithParams(chain, url, user, password string) (Conn, error) {
+func ConnectWithParams(chain, url string) (Conn, error) {
 	var chainParams *chaincfg.Params
-	var connect string
-	var err error
 
 	switch chain {
 	case "regtest":
@@ -47,104 +45,41 @@ func ConnectWithParams(chain, url, user, password string) (Conn, error) {
 		chainParams = &chaincfg.MainNetParams
 	}
 
-	if url == "" {
-		connect, err = normalizeAddress("localhost", walletPort(chainParams))
-		if err != nil {
-			return Conn{}, fmt.Errorf("wallet server address: %v", err)
-		}
-	} else {
-		connect = url
-	}
-
-	connConfig := &rpc.ConnConfig{
-		Host:         connect,
-		User:         user,
-		Pass:         password,
-		DisableTLS:   true,
-		HTTPPostMode: true,
-	}
-
-	rpcClient, err := rpc.New(connConfig, nil)
-	if err != nil {
-		return Conn{}, fmt.Errorf("rpc connect: %v", err)
-	}
-
-	// Should call the following after this function:
-	/*
-		defer func() {
-			rpcClient.Shutdown()
-			pcClient.WaitForShutdown()
-		}()
-	*/
-
 	return Conn{
-		Client:      rpcClient,
+		URL:         url,
 		ChainParams: chainParams,
 		Network:     chain,
 	}, nil
 }
 
-func (conn *Conn) FundRawTransaction(tx *wire.MsgTx) (fundedTx *wire.MsgTx, err error) {
-	var buf bytes.Buffer
-	buf.Grow(tx.SerializeSize())
-	tx.Serialize(&buf)
-	param0, err := json.Marshal(hex.EncodeToString(buf.Bytes()))
-	if err != nil {
-		return nil, err
-	}
-	params := []json.RawMessage{param0}
-	rawResp, err := conn.Client.RawRequest("fundrawtransaction", params)
-	if err != nil {
-		return nil, err
-	}
-	var resp struct {
-		Hex       string  `json:"hex"`
-		Fee       float64 `json:"fee"`
-		ChangePos float64 `json:"changepos"`
-	}
-	err = json.Unmarshal(rawResp, &resp)
-	if err != nil {
-		return nil, err
-	}
-	fundedTxBytes, err := hex.DecodeString(resp.Hex)
-	if err != nil {
-		return nil, err
-	}
-	fundedTx = &wire.MsgTx{}
-	err = fundedTx.Deserialize(bytes.NewReader(fundedTxBytes))
-	if err != nil {
-		return nil, err
-	}
-	return fundedTx, nil
-}
-
 func (conn *Conn) PromptPublishTx(tx *wire.MsgTx, name string) (*chainhash.Hash, error) {
-	// FIXME: Transaction fees are set to high, change it before deploying to mainnet. By changing the booleon to false.
-	txHash, err := conn.Client.SendRawTransaction(tx, true)
+	buf := bytes.NewBuffer([]byte{})
+	if err := tx.Serialize(buf); err != nil {
+		return nil, err
+	}
+	stx := hex.EncodeToString(buf.Bytes())
+	data := url.Values{}
+	data.Set("tx", stx)
+
+	client := &http.Client{}
+	r, err := http.NewRequest("POST", conn.URL+"/pushtx", strings.NewReader(data.Encode())) // URL-encoded payload
 	if err != nil {
-		return nil, fmt.Errorf("sendrawtransaction: %v", err)
+		return nil, err
 	}
-	return txHash, nil
-}
+	r.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
-func (conn *Conn) WaitForConfirmations(txHash *chainhash.Hash, requiredConfirmations int64) error {
-	confirmations := int64(0)
-	for confirmations < requiredConfirmations {
-		txDetails, err := conn.Client.GetTransaction(txHash)
-		if err != nil {
-			return err
-		}
-		confirmations = txDetails.Confirmations
-
-		// TODO: Base delay on chain config
-		time.Sleep(1 * time.Second)
+	resp, err := client.Do(r)
+	if err != nil {
+		return nil, err
 	}
-	return nil
-}
 
-func (conn *Conn) Shutdown() {
-	conn.Client.Shutdown()
-	conn.Client.WaitForShutdown()
+	bodyBytes, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Println(resp.Status, string(bodyBytes))
+	hash := tx.TxHash()
+	return &hash, nil
 }
 
 func normalizeAddress(addr string, defaultPort string) (hostport string, err error) {
@@ -173,14 +108,6 @@ func walletPort(params *chaincfg.Params) string {
 	}
 }
 
-type UTXO struct {
-	Amount       float64
-	ScriptPubKey string
-	RedeemScript string
-	TxID         string
-	Vout         uint32
-}
-
 func (conn *Conn) SignTransaction(tx *wire.MsgTx, key keystore.Key) (*wire.MsgTx, bool, error) {
 	addr, err := key.GetAddress()
 	if err != nil {
@@ -192,25 +119,27 @@ func (conn *Conn) SignTransaction(tx *wire.MsgTx, key keystore.Key) (*wire.MsgTx
 			"intended for use on %v", conn.ChainParams.Name)
 	}
 
-	var value, unspentValue float64
+	var value int64
+
 	for _, j := range tx.TxOut {
-		value = value + float64(j.Value)
+		value = value + j.Value
 	}
-	utxos, err := conn.Client.ListUnspentMinMaxAddresses(0, 99999, []btcutil.Address{myAddr})
+
+	unspentValue, err := conn.Balance(myAddr)
 	if err != nil {
 		return nil, false, err
 	}
 
-	value = value / 100000000
-	for _, utxo := range utxos {
-		unspentValue = unspentValue + utxo.Amount
+	utxos, err := conn.ListUnspent(myAddr)
+	if err != nil {
+		return nil, false, err
 	}
-	if value > unspentValue {
-		return nil, false, fmt.Errorf("Not enough balance required:%f current:%f", value, unspentValue)
-	}
-	selectedTxIns := []btcjson.RawTxInput{}
 
-	for _, j := range utxos {
+	if value > unspentValue {
+		return nil, false, fmt.Errorf("Not enough balance required:%d current:%d", value, unspentValue)
+	}
+
+	for _, j := range utxos.UnspentOutputs {
 		if value <= 0 {
 			break
 		}
@@ -218,7 +147,7 @@ func (conn *Conn) SignTransaction(tx *wire.MsgTx, key keystore.Key) (*wire.MsgTx
 		if err != nil {
 			return nil, false, err
 		}
-		hash, err := chainhash.NewHash(reverse(hashBytes))
+		hash, err := chainhash.NewHash(hashBytes)
 		if err != nil {
 			return nil, false, err
 		}
@@ -227,22 +156,15 @@ func (conn *Conn) SignTransaction(tx *wire.MsgTx, key keystore.Key) (*wire.MsgTx
 			return nil, false, err
 		}
 		tx.AddTxIn(wire.NewTxIn(wire.NewOutPoint(hash, j.Vout), ScriptPubKey, [][]byte{}))
-		selectedTxIns = append(selectedTxIns, btcjson.RawTxInput{
-			Txid:         j.TxID,
-			Vout:         j.Vout,
-			ScriptPubKey: j.ScriptPubKey,
-			RedeemScript: j.RedeemScript,
-		})
 		value = value - j.Amount
 	}
-
 	P2PKHScript, err := txscript.PayToAddrScript(myAddr)
 	if err != nil {
 		return nil, false, err
 	}
 
 	if value <= 0 {
-		tx.AddTxOut(wire.NewTxOut(int64(-value*100000000)-10000, P2PKHScript))
+		tx.AddTxOut(wire.NewTxOut(int64(-value)-10000, P2PKHScript))
 	}
 
 	privKey, err := key.GetKey()
@@ -258,28 +180,83 @@ func (conn *Conn) SignTransaction(tx *wire.MsgTx, key keystore.Key) (*wire.MsgTx
 		}
 		tx.TxIn[i].SignatureScript = sigScript
 	}
+
 	return tx, true, nil
 }
 
-// func ListUnspent(address btcutil.Address) ([]UTXO) {
+type Unspent struct {
+	TxID         string `json:"tx_hash"`
+	Vout         uint32 `json:"tx_output_n"`
+	ScriptPubKey string `json:"script"`
+	Amount       int64  `json:"value"`
+}
 
-// 	{
-// 		"tx_hash":"56e267a8ee056c88c26a57313c2689eeaadb5dae312a1f02c3a31035b90f420d",
-// 		"tx_hash_big_endian":"0d420fb93510a3c3021f2a31ae5ddbaaee89263c31576ac2886c05eea867e256",
-// 		"tx_index":241648797,
-// 		"tx_output_n": 1,
-// 		"script":"76a91448b5c6986b7bc6390bd1cc416154d1874fe116fd88ac",
-// 		"value": 2385354313,
-// 		"value_hex": "008e2d9e49",
-// 		"confirmations":25612
-// 	}
+type Unspents struct {
+	UnspentOutputs []Unspent `json:"unspent_outputs"`
+}
 
-// https: //testnet.blockchain.info/unspent?active=
-// }
-
-func reverse(arr []byte) []byte {
-	for i, j := 0, len(arr)-1; i < len(arr)/2; i, j = i+1, j-1 {
-		arr[i], arr[j] = arr[j], arr[i]
+func (conn *Conn) ListUnspent(address btcutil.Address) (Unspents, error) {
+	resp, err := http.Get(fmt.Sprintf(conn.URL + "/unspent?active=" + address.EncodeAddress()))
+	if err != nil {
+		return Unspents{}, err
 	}
-	return arr
+	defer resp.Body.Close()
+	utxoBytes, err := ioutil.ReadAll(resp.Body)
+	utxos := Unspents{}
+	json.Unmarshal(utxoBytes, &utxos)
+	return utxos, nil
+}
+
+func (conn *Conn) Balance(address btcutil.Address) (int64, error) {
+	utxos, err := conn.ListUnspent(address)
+	if err != nil {
+		return -1, err
+	}
+	var balance int64
+	for _, utxo := range utxos.UnspentOutputs {
+		balance = balance + utxo.Amount
+	}
+	return balance, nil
+}
+
+// WaitTillMined doesnot wait for the transactions to be mined, can be updated
+// later
+func (conn *Conn) WaitTillMined(txHash *chainhash.Hash, confirmations int64) error {
+	type tx struct {
+		BlockHeight int64 `json:"block_height"`
+	}
+
+	type block struct {
+		Height int64 `json:"height"`
+	}
+
+	if confirmations <= 0 {
+		return nil
+	}
+	confirmations = confirmations - 1
+	for {
+		resp, err := http.Get(fmt.Sprintf(conn.URL + "/rawtx/" + txHash.String()))
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+		txBytes, err := ioutil.ReadAll(resp.Body)
+		transaction := tx{}
+		json.Unmarshal(txBytes, &transaction)
+
+		resp2, err := http.Get(fmt.Sprintf(conn.URL + "/latestblock"))
+		if err != nil {
+			return err
+		}
+		defer resp2.Body.Close()
+		blockBytes, err := ioutil.ReadAll(resp2.Body)
+		blockDetails := block{}
+		json.Unmarshal(blockBytes, &blockDetails)
+
+		if transaction.BlockHeight != 0 && blockDetails.Height-transaction.BlockHeight >= confirmations {
+			break
+		}
+		time.Sleep(1 * time.Second)
+	}
+	return nil
 }
