@@ -68,16 +68,11 @@ func (conn *Conn) PromptPublishTx(tx *wire.MsgTx, name string) (*chainhash.Hash,
 	}
 	r.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
-	resp, err := client.Do(r)
+	_, err = client.Do(r)
 	if err != nil {
 		return nil, err
 	}
 
-	bodyBytes, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	fmt.Println(resp.Status, string(bodyBytes))
 	hash := tx.TxHash()
 	return &hash, nil
 }

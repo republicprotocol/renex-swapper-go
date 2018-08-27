@@ -46,7 +46,7 @@ var _ = Describe("bitcoin", func() {
 		bobKey, err := keystore.NewKey(bobPrivKey, 0, "testnet")
 		Expect(err).ShouldNot(HaveOccurred())
 
-		connection, err = btcclient.ConnectWithParams("testnet", "18.207.119.242:18332", "KolUtDy6Li7stVHHI9nD1zuGAcJY6@oi", "bdXpZLPBaQtT7OlpZW0FyKp@6rw7frMC")
+		connection, err = btcclient.ConnectWithParams("testnet", "https://testnet.blockchain.info")
 		Expect(err).ShouldNot(HaveOccurred())
 
 		rand.Read(orderID[:])
@@ -72,12 +72,6 @@ var _ = Describe("bitcoin", func() {
 		Expect(err).ShouldNot(HaveOccurred())
 		_bobAddr, err = btcutil.DecodeAddress(bobAddr, connection.ChainParams)
 		Expect(err).ShouldNot(HaveOccurred())
-
-		btcValue, err := btcutil.NewAmount(0.5)
-		Expect(err).ShouldNot(HaveOccurred())
-
-		connection.Client.SendToAddress(_aliceAddr, btcValue)
-		connection.Client.SendToAddress(_bobAddr, btcValue)
 
 		reqAtom = NewBitcoinAtom(&adapter, connection, aliceKey, orderID)
 		reqAtomFailed = NewBitcoinAtom(&adapter, connection, aliceKey, failedOrderID)
