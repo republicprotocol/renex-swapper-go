@@ -8,7 +8,9 @@ import (
 	"net"
 	"time"
 
+	"github.com/btcsuite/btcd/btcec"
 	"github.com/btcsuite/btcd/txscript"
+	"github.com/btcsuite/btcutil"
 
 	"github.com/btcsuite/btcd/btcjson"
 
@@ -16,7 +18,7 @@ import (
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	rpc "github.com/btcsuite/btcd/rpcclient"
 	"github.com/btcsuite/btcd/wire"
-	"github.com/btcsuite/btcutil"
+	"github.com/republicprotocol/renex-swapper-go/adapters/configs/keystore"
 	"github.com/republicprotocol/renex-swapper-go/adapters/configs/network"
 )
 
@@ -171,14 +173,32 @@ func walletPort(params *chaincfg.Params) string {
 	}
 }
 
-func (conn *Conn) FundTransaction(tx *wire.MsgTx, addresses []btcutil.Address) (fundedTx *wire.MsgTx, inputs []btcjson.RawTxInput, err error) {
+type UTXO struct {
+	Amount       float64
+	ScriptPubKey string
+	RedeemScript string
+	TxID         string
+	Vout         uint32
+}
+
+func (conn *Conn) SignTransaction(tx *wire.MsgTx, key keystore.Key) (*wire.MsgTx, bool, error) {
+	addr, err := key.GetAddress()
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to decode your address: %v", err)
+	}
+	myAddr, err := btcutil.DecodeAddress(string(addr), conn.ChainParams)
+	if err != nil {
+		return nil, false, fmt.Errorf("your address is not "+
+			"intended for use on %v", conn.ChainParams.Name)
+	}
+
 	var value, unspentValue float64
 	for _, j := range tx.TxOut {
 		value = value + float64(j.Value)
 	}
-	utxos, err := conn.Client.ListUnspentMinMaxAddresses(0, 99999, addresses)
+	utxos, err := conn.Client.ListUnspentMinMaxAddresses(0, 99999, []btcutil.Address{myAddr})
 	if err != nil {
-		return nil, nil, err
+		return nil, false, err
 	}
 
 	value = value / 100000000
@@ -186,7 +206,7 @@ func (conn *Conn) FundTransaction(tx *wire.MsgTx, addresses []btcutil.Address) (
 		unspentValue = unspentValue + utxo.Amount
 	}
 	if value > unspentValue {
-		return nil, nil, fmt.Errorf("Not enough balance required:%f current:%f", value, unspentValue)
+		return nil, false, fmt.Errorf("Not enough balance required:%f current:%f", value, unspentValue)
 	}
 	selectedTxIns := []btcjson.RawTxInput{}
 
@@ -196,13 +216,17 @@ func (conn *Conn) FundTransaction(tx *wire.MsgTx, addresses []btcutil.Address) (
 		}
 		hashBytes, err := hex.DecodeString(j.TxID)
 		if err != nil {
-			return nil, nil, err
+			return nil, false, err
 		}
 		hash, err := chainhash.NewHash(reverse(hashBytes))
 		if err != nil {
-			return nil, nil, err
+			return nil, false, err
 		}
-		tx.AddTxIn(wire.NewTxIn(wire.NewOutPoint(hash, j.Vout), []byte{}, [][]byte{}))
+		ScriptPubKey, err := hex.DecodeString(j.ScriptPubKey)
+		if err != nil {
+			return nil, false, err
+		}
+		tx.AddTxIn(wire.NewTxIn(wire.NewOutPoint(hash, j.Vout), ScriptPubKey, [][]byte{}))
 		selectedTxIns = append(selectedTxIns, btcjson.RawTxInput{
 			Txid:         j.TxID,
 			Vout:         j.Vout,
@@ -212,54 +236,46 @@ func (conn *Conn) FundTransaction(tx *wire.MsgTx, addresses []btcutil.Address) (
 		value = value - j.Amount
 	}
 
-	P2PKHScript, err := txscript.PayToAddrScript(addresses[0])
+	P2PKHScript, err := txscript.PayToAddrScript(myAddr)
 	if err != nil {
-		return nil, nil, err
+		return nil, false, err
 	}
 
 	if value <= 0 {
 		tx.AddTxOut(wire.NewTxOut(int64(-value*100000000)-10000, P2PKHScript))
 	}
 
-	return tx, selectedTxIns, nil
-}
-
-// TODO: Implement Sign Transaction logic here so that we do not have to import
-// the privatekey onto the bitcoin node and people can submit signed
-// transactions to arbitrary nodes.
-func (conn *Conn) SignTransaction(tx *wire.MsgTx) (*wire.MsgTx, bool, error) {
-	buf := bytes.NewBuffer([]byte{})
-
-	// for _, txin := range tx.TxIn {
-	// 	fmt.Println(*txin)
-	// }
-
-	// for _, txout := range tx.TxOut {
-	// 	fmt.Println(*txout)
-	// }
-
-	if err := tx.Serialize(buf); err != nil {
-		panic(err)
-	}
-	// hash1 := sha256.Sum256(buf.Bytes())
-	// hash2 := sha256.Sum256(hash1[:])
-	// fmt.Println(hash2)
-
-	stx, complete, err := conn.Client.SignRawTransaction(tx)
+	privKey, err := key.GetKey()
 	if err != nil {
 		return nil, false, err
 	}
 
-	// for _, txin := range stx.TxIn {
-	// 	fmt.Println(*txin)
-	// }
-
-	// for _, txout := range stx.TxOut {
-	// 	fmt.Println(*txout)
-	// }
-
-	return stx, complete, nil
+	priKey := btcec.PrivateKey(*privKey)
+	for i, txin := range tx.TxIn {
+		sigScript, err := txscript.SignatureScript(tx, i, txin.SignatureScript, txscript.SigHashAll, &priKey, false)
+		if err != nil {
+			return nil, false, err
+		}
+		tx.TxIn[i].SignatureScript = sigScript
+	}
+	return tx, true, nil
 }
+
+// func ListUnspent(address btcutil.Address) ([]UTXO) {
+
+// 	{
+// 		"tx_hash":"56e267a8ee056c88c26a57313c2689eeaadb5dae312a1f02c3a31035b90f420d",
+// 		"tx_hash_big_endian":"0d420fb93510a3c3021f2a31ae5ddbaaee89263c31576ac2886c05eea867e256",
+// 		"tx_index":241648797,
+// 		"tx_output_n": 1,
+// 		"script":"76a91448b5c6986b7bc6390bd1cc416154d1874fe116fd88ac",
+// 		"value": 2385354313,
+// 		"value_hex": "008e2d9e49",
+// 		"confirmations":25612
+// 	}
+
+// https: //testnet.blockchain.info/unspent?active=
+// }
 
 func reverse(arr []byte) []byte {
 	for i, j := 0, len(arr)-1; i < len(arr)/2; i, j = i+1, j-1 {

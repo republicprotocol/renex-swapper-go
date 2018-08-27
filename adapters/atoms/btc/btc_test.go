@@ -3,6 +3,7 @@ package btc_test
 import (
 	"crypto/rand"
 	"crypto/sha256"
+	"fmt"
 	"math/big"
 	"time"
 
@@ -37,18 +38,6 @@ var _ = Describe("bitcoin", func() {
 	adapter := NewMockAdapter()
 
 	BeforeSuite(func() {
-		connection, err = btcclient.ConnectWithParams("regtest", "localhost:18443", "testuser", "testpassword")
-		Expect(err).ShouldNot(HaveOccurred())
-
-		rand.Read(orderID[:])
-		rand.Read(failedOrderID[:])
-
-		go func() {
-			err = regtest.Mine(connection)
-			Expect(err).ShouldNot(HaveOccurred())
-		}()
-		// time.Sleep(5 * time.Second)
-
 		alicePrivKey, err := keystore.RandomBitcoinKeyString("regtest")
 		Expect(err).ShouldNot(HaveOccurred())
 
@@ -61,13 +50,27 @@ var _ = Describe("bitcoin", func() {
 		bobKey, err := keystore.NewKey(bobPrivKey, 0, "regtest")
 		Expect(err).ShouldNot(HaveOccurred())
 
+		connection, err = btcclient.ConnectWithParams("regtest", "localhost:18443", "testuser", "testpassword")
+		Expect(err).ShouldNot(HaveOccurred())
+
+		rand.Read(orderID[:])
+		rand.Read(failedOrderID[:])
+
+		go func() {
+			err = regtest.Mine(connection)
+			Expect(err).ShouldNot(HaveOccurred())
+		}()
+		time.Sleep(5 * time.Second)
+
 		aliceAddrBytes, err = aliceKey.GetAddress()
 		Expect(err).ShouldNot(HaveOccurred())
 		bobAddrBytes, err = bobKey.GetAddress()
 		Expect(err).ShouldNot(HaveOccurred())
 
 		aliceAddr = string(aliceAddrBytes)
+		fmt.Println(aliceAddr)
 		bobAddr = string(bobAddrBytes)
+		fmt.Println(bobAddr)
 
 		_aliceAddr, err = btcutil.DecodeAddress(aliceAddr, connection.ChainParams)
 		Expect(err).ShouldNot(HaveOccurred())
@@ -79,18 +82,6 @@ var _ = Describe("bitcoin", func() {
 
 		connection.Client.SendToAddress(_aliceAddr, btcValue)
 		connection.Client.SendToAddress(_bobAddr, btcValue)
-
-		aliceWIF, err := btcutil.DecodeWIF(alicePrivKey)
-		Expect(err).ShouldNot(HaveOccurred())
-
-		err = connection.Client.ImportPrivKey(aliceWIF)
-		Expect(err).ShouldNot(HaveOccurred())
-
-		bobWIF, err := btcutil.DecodeWIF(bobPrivKey)
-		Expect(err).ShouldNot(HaveOccurred())
-
-		err = connection.Client.ImportPrivKey(bobWIF)
-		Expect(err).ShouldNot(HaveOccurred())
 
 		reqAtom = NewBitcoinAtom(&adapter, connection, aliceKey, orderID)
 		reqAtomFailed = NewBitcoinAtom(&adapter, connection, aliceKey, failedOrderID)

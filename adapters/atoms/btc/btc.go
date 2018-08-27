@@ -49,11 +49,7 @@ func NewBitcoinAtom(adapter Adapter, connection btc.Conn, key keystore.Key, orde
 
 // Initiate a new Atom swap by calling Bitcoin
 func (atom *BitcoinAtom) Initiate(to []byte, hash [32]byte, value *big.Int, expiry int64) error {
-	from, err := atom.GetFromAddress()
-	if err != nil {
-		return err
-	}
-	result, err := bindings.Initiate(atom.connection, string(from), string(to), value.Int64(), hash[:], expiry)
+	result, err := bindings.Initiate(atom.connection, atom.key, string(to), value.Int64(), hash[:], expiry)
 	if err != nil {
 		return err
 	}
@@ -70,12 +66,7 @@ func (atom *BitcoinAtom) Initiate(to []byte, hash [32]byte, value *big.Int, expi
 
 // Redeem an Atom swap by calling a function on Bitcoin
 func (atom *BitcoinAtom) Redeem(secret [32]byte) error {
-	from, err := atom.GetFromAddress()
-	if err != nil {
-		return err
-	}
-
-	result, err := bindings.Redeem(atom.connection, string(from), atom.data.Contract, atom.data.ContractTx, secret)
+	result, err := bindings.Redeem(atom.connection, atom.key, atom.data.Contract, atom.data.ContractTx, secret)
 	if err != nil {
 		return err
 	}
@@ -96,11 +87,7 @@ func (atom *BitcoinAtom) RedeemedAt() (int64, error) {
 
 // Refund an Atom swap by calling Bitcoin
 func (atom *BitcoinAtom) Refund() error {
-	from, err := atom.GetFromAddress()
-	if err != nil {
-		return err
-	}
-	return bindings.Refund(atom.connection, string(from), atom.data.Contract, atom.data.ContractTx)
+	return bindings.Refund(atom.connection, atom.key, atom.data.Contract, atom.data.ContractTx)
 }
 
 // Audit an Atom swap by calling a function on Bitcoin
