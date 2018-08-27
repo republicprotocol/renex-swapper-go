@@ -188,17 +188,15 @@ func bitcoinBalance(conf network.Config, key keystore.Key) (Balance, error) {
 		return Balance{}, err
 	}
 
-	utxos, err := conn.Client.ListUnspentMinMaxAddresses(1, 999999, []btcutil.Address{btcAddr})
-	balance := float64(0)
-
-	for _, utxo := range utxos {
-		balance += utxo.Amount
+	balance, err := conn.Balance(btcAddr)
+	if err != nil {
+		return Balance{}, err
 	}
 
 	return Balance{
 		PriorityCode: key.PriorityCode(),
 		Address:      string(addr),
-		Amount:       uint64(balance * 100000000),
+		Amount:       uint64(balance),
 	}, nil
 }
 
