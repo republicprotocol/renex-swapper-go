@@ -26,18 +26,13 @@ func main() {
 
 	addresses := []string{}
 	reader := bufio.NewReader(os.Stdin)
-	fmt.Print("Enter your ethereum address(es): (\033[32mClick Enter to Finish\033[m) \nAddress>")
-	for {
-		text, err := reader.ReadString('\n')
-		if err != nil {
-			panic(err)
-		}
-		if text == "\n" {
-			break
-		}
-		addresses = append(addresses, strings.Trim(text, "\r\n"))
-		fmt.Print("Address>")
+	fmt.Print("Enter your ethereum address(es): ")
+	text, err := reader.ReadString('\n')
+	if err != nil {
+		panic(err)
 	}
+	addresses = append(addresses, strings.Trim(text, "\r\n"))
+
 	cfg.AuthorizedAddresses = addresses
 	cfg.Watchdog = "renex-watchdog-testnet.herokuapp.com"
 
@@ -50,16 +45,7 @@ func main() {
 		panic(err)
 	}
 
-	fmt.Print("Enter Bitcoin Node IP Address: (<ipaddress>:<port>): ")
-	ipAddr, _ := reader.ReadString('\n')
-	fmt.Print("Enter Bitcoin RPC UserName: ")
-	rpcUser, _ := reader.ReadString('\n')
-	fmt.Print("Enter Bitcoin RPC Password: ")
-	rpcPass, _ := reader.ReadString('\n')
-
-	net.Bitcoin.Password = strings.Trim(rpcPass, "\r\n")
-	net.Bitcoin.User = strings.Trim(rpcUser, "\r\n")
-	net.Bitcoin.URL = strings.Trim(ipAddr, "\r\n")
+	net.Bitcoin.URL = "https://testnet.blockchain.info"
 
 	if err := net.Update(); err != nil {
 		panic(err)
