@@ -2,9 +2,11 @@ package store
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/json"
 	"math/big"
 	"sync"
+	"time"
 
 	"github.com/republicprotocol/renex-swapper-go/domains/match"
 	"github.com/republicprotocol/renex-swapper-go/services/logger"
@@ -63,6 +65,9 @@ type State interface {
 
 	Match([32]byte) (match.Match, error)
 	PutMatch([32]byte, match.Match) error
+
+	Expiry([32]byte) (int64, error)
+	PutExpiry([32]byte) error
 
 	AtomDetails([32]byte) ([]byte, error)
 	PutAtomDetails([32]byte, []byte) error
@@ -359,4 +364,18 @@ func (state *state) Redeemed(orderID [32]byte) error {
 		return err
 	}
 	return nil
+}
+
+func (state *state) Expiry(orderID [32]byte) (int64, error) {
+	data, err := state.Read(append([]byte("Expiry"), orderID[:]...))
+	if err != nil {
+		return 0, nil
+	}
+	return int64(binary.LittleEndian.Uint64(data)), nil
+}
+
+func (state *state) PutExpiry(orderID [32]byte) error {
+	data := make([]byte, 8)
+	binary.LittleEndian.PutUint64(data, uint64(time.Now().Unix()+25*60*60))
+	return state.Write(append([]byte("Expiry")), data)
 }

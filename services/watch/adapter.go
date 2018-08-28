@@ -13,5 +13,5 @@ type Adapter interface {
 	// "GetMatch"
 	swap.SwapAdapter
 	BuildAtoms(store.State, match.Match) (swap.Atom, swap.Atom, error)
-	CheckForMatch(order.ID, bool) (match.Match, error)
+	CheckForMatch(order.ID, int64) (match.Match, error)
 }

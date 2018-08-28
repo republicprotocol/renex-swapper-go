@@ -11,9 +11,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
 
-	"github.com/ethereum/go-ethereum/crypto/secp256k1"
 	bindings "github.com/republicprotocol/renex-swapper-go/adapters/blockchain/bindings/eth"
 	ethclient "github.com/republicprotocol/renex-swapper-go/adapters/blockchain/clients/eth"
 	"github.com/republicprotocol/renex-swapper-go/domains/match"
@@ -30,10 +28,10 @@ type Binder struct {
 	transactOpts *bind.TransactOpts
 	callOpts     *bind.CallOpts
 
-	*bindings.AtomicInfo
+	*bindings.RenExAtomicInfo
 	*bindings.Orderbook
 	*bindings.RenExSettlement
-	*bindings.AtomicSwap
+	*bindings.RenExAtomicSwapper
 }
 
 // NewBinder returns a Binder to communicate with contracts
@@ -42,12 +40,12 @@ func NewBinder(privKey *ecdsa.PrivateKey, conn ethclient.Conn) (Binder, error) {
 	auth.GasPrice = big.NewInt(20000000000)
 	auth.GasLimit = 3000000
 
-	atomicInfo, err := bindings.NewAtomicInfo(conn.RenExAtomicInfoAddress(), bind.ContractBackend(conn.Client()))
+	atomicInfo, err := bindings.NewRenExAtomicInfo(conn.RenExAtomicInfoAddress(), bind.ContractBackend(conn.Client()))
 	if err != nil {
 		return Binder{}, fmt.Errorf("cannot bind to atom info: %v", err)
 	}
 
-	atomicSwap, err := bindings.NewAtomicSwap(conn.RenExAtomicSwapperAddress(), bind.ContractBackend(conn.Client()))
+	atomicSwap, err := bindings.NewRenExAtomicSwapper(conn.RenExAtomicSwapperAddress(), bind.ContractBackend(conn.Client()))
 	if err != nil {
 		return Binder{}, fmt.Errorf("cannot bind to atomic swap: %v", err)
 	}
@@ -70,10 +68,10 @@ func NewBinder(privKey *ecdsa.PrivateKey, conn ethclient.Conn) (Binder, error) {
 		callOpts:     &bind.CallOpts{},
 		privKey:      privKey,
 
-		AtomicInfo:      atomicInfo,
-		AtomicSwap:      atomicSwap,
-		Orderbook:       orderbook,
-		RenExSettlement: renExSettlement,
+		RenExAtomicInfo:    atomicInfo,
+		RenExAtomicSwapper: atomicSwap,
+		Orderbook:          orderbook,
+		RenExSettlement:    renExSettlement,
 	}, nil
 }
 
@@ -130,51 +128,41 @@ func (binder *Binder) slashBond(guiltyOrderID order.ID) error {
 // CheckForMatch checks if a match is found and returns the match object. If
 // a match is not found and the 'wait' flag is set to true, it loops until a
 // match is found.
-func (binder *Binder) CheckForMatch(orderID order.ID, wait bool) (match.Match, error) {
-	for {
+func (binder *Binder) CheckForMatch(orderID order.ID, expiry int64) (match.Match, error) {
+	for time.Now().Unix() <= expiry {
 		status, err := binder.OrderStatus(binder.callOpts, orderID)
 		if err != nil {
 			return nil, err
 		}
 		if status == 2 {
-			PersonalOrder, ForeignOrder, ReceiveValue, SendValue, ReceiveCurrency, SendCurrency, err := binder.GetMatchDetails(&bind.CallOpts{}, orderID)
-			if err != nil {
-				return nil, err
-			}
-			return match.NewMatch(PersonalOrder, ForeignOrder, SendValue, ReceiveValue, SendCurrency, ReceiveCurrency), nil
+			break
 		}
-
-		if !wait {
-			return nil, fmt.Errorf("Match does not exist")
-		}
-
-		expired, err := binder.expired(orderID)
-
-		if err != nil {
-			return nil, fmt.Errorf("Failed to get match details")
-		}
-
-		// if cancelled := binder.cancelled(orderID); cancelled {
-		// 	return nil, fmt.Errorf("Order cancelled")
-		// }
-
-		if expired {
-			return nil, fmt.Errorf("Order expired")
-		}
-
 		time.Sleep(15 * time.Second)
 	}
+	status, err := binder.OrderStatus(binder.callOpts, orderID)
+	if err != nil {
+		return nil, err
+	}
+	if status == 2 {
+		PersonalOrder, ForeignOrder, ReceiveValue, SendValue, ReceiveCurrency, SendCurrency, err := binder.matchDetails(orderID)
+		if err != nil {
+			return nil, err
+		}
+		return match.NewMatch(PersonalOrder, ForeignOrder, SendValue, ReceiveValue, SendCurrency, ReceiveCurrency), nil
+	}
+	return nil, fmt.Errorf("Failed to get match details")
 }
 
-func (binder *Binder) expired(orderID order.ID) (bool, error) {
-	details, err := binder.OrderDetails(binder.callOpts, orderID)
+func (binder *Binder) matchDetails(orderID order.ID) ([32]byte, [32]byte, *big.Int, *big.Int, uint32, uint32, error) {
+	match, err := binder.GetMatchDetails(binder.callOpts, orderID)
 	if err != nil {
-		return false, err
+		return [32]byte{}, [32]byte{}, nil, nil, 0, 0, err
 	}
-	if time.Now().Unix() > int64(details.Expiry) && int64(details.Expiry) != 0 {
-		return true, nil
+
+	if match.OrderIsBuy {
+		return orderID, match.MatchedID, match.SecondaryVolume, match.PriorityVolume, match.SecondaryToken, match.PriorityToken, nil
 	}
-	return false, nil
+	return orderID, match.MatchedID, match.PriorityVolume, match.SecondaryVolume, match.PriorityToken, match.SecondaryToken, nil
 }
 
 func (binder *Binder) cancelled(orderID order.ID) bool {
@@ -327,57 +315,7 @@ func (binder *Binder) AuthorizeAtomBox() error {
 }
 
 func (binder *Binder) authorizeAtomBox() error {
-	tx, err := binder.AuthoriseSwapper(binder.transactOpts, binder.transactOpts.From)
-	if err != nil {
-		return err
-	}
-	if _, err := binder.conn.PatchedWaitMined(context.Background(), tx); err != nil {
-		return err
-	}
-	return nil
-}
-
-// SubmitBuyOrder submits a new buy order
-func (binder *Binder) SubmitBuyOrder(orderID [32]byte) error {
-	binder.mu.Lock()
-	defer binder.mu.Unlock()
-	return binder.submitBuyOrder(orderID)
-}
-
-func (binder *Binder) submitBuyOrder(orderID [32]byte) error {
-	message := append([]byte("Republic Protocol: open: "), orderID[:]...)
-	signatureData := crypto.Keccak256([]byte(fmt.Sprintf("\x19Ethereum Signed Message:\n%d", len(message))), message)
-	binder.privKey.PublicKey.Curve = secp256k1.S256()
-	signature, err := crypto.Sign(signatureData, binder.privKey)
-	if err != nil {
-		return err
-	}
-	tx, err := binder.OpenBuyOrder(binder.transactOpts, signature, orderID)
-	if err != nil {
-		return err
-	}
-	if _, err := binder.conn.PatchedWaitMined(context.Background(), tx); err != nil {
-		return err
-	}
-	return nil
-}
-
-// SubmitSellOrder submits a new sell order
-func (binder *Binder) SubmitSellOrder(orderID [32]byte) error {
-	binder.mu.Lock()
-	defer binder.mu.Unlock()
-	return binder.submitBuyOrder(orderID)
-}
-
-func (binder *Binder) submitSellOrder(orderID [32]byte) error {
-	message := append([]byte("Republic Protocol: open: "), orderID[:]...)
-	signatureData := crypto.Keccak256([]byte(fmt.Sprintf("\x19Ethereum Signed Message:\n%d", len(message))), message)
-	binder.privKey.PublicKey.Curve = secp256k1.S256()
-	signature, err := crypto.Sign(signatureData, binder.privKey)
-	if err != nil {
-		return err
-	}
-	tx, err := binder.OpenSellOrder(binder.transactOpts, signature, orderID)
+	tx, err := binder.AuthorizeSwapper(binder.transactOpts, binder.transactOpts.From)
 	if err != nil {
 		return err
 	}

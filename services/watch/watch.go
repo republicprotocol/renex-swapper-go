@@ -187,8 +187,11 @@ func (watch *watch) execute(orderID [32]byte) error {
 
 func (watch *watch) initiate(orderID [32]byte) error {
 	watch.adapter.LogInfo(orderID, "starting the atomic swap")
-	err := watch.state.PutStatus(orderID, "PENDING")
-	if err != nil {
+	if err := watch.state.PutExpiry(orderID); err != nil {
+		return nil
+	}
+
+	if err := watch.state.PutStatus(orderID, "PENDING"); err != nil {
 		return err
 	}
 	watch.adapter.LogInfo(orderID, "started the atomic swap")
@@ -197,7 +200,12 @@ func (watch *watch) initiate(orderID [32]byte) error {
 
 func (watch *watch) getMatch(orderID [32]byte) error {
 	watch.adapter.LogInfo(orderID, "waiting for the match to be found")
-	match, err := watch.adapter.CheckForMatch(orderID, true)
+	expiry, err := watch.state.Expiry(orderID)
+	if err != nil {
+		return err
+	}
+
+	match, err := watch.adapter.CheckForMatch(orderID, expiry)
 	if err != nil {
 		return err
 	}
