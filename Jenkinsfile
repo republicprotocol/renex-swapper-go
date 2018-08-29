@@ -8,7 +8,7 @@ pipeline {
   stages {
     stage('Initialise') {
       steps {
-        sh '''apk add --no-cache git mercurial 
+        sh '''apk add git mercurial 
 go get -u github.com/karalabe/xgo
 '''
       }
