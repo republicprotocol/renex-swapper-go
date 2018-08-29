@@ -8,7 +8,7 @@ pipeline {
   stages {
     stage('Initialise') {
       steps {
-        sh '''cd /home/ubuntu/build
+        sh '''cd build
 '''
       }
     }
