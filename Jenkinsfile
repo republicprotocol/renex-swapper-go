@@ -8,7 +8,7 @@ pipeline {
   stages {
     stage('Initialise') {
       steps {
-        sh '''cd ~/build
+        sh '''cd $HOME/build
 '''
       }
     }
