@@ -8,7 +8,7 @@ pipeline {
   stages {
     stage('Initialise') {
       steps {
-        sh 'docker container ls'
+        sh 'go version'
       }
     }
     stage('Build') {
