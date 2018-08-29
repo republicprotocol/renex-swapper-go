@@ -2,6 +2,7 @@ pipeline {
   agent {
     docker {
       image 'golang:alpine'
+      args '--user=root --privileged nginx sh'
     }
 
   }
