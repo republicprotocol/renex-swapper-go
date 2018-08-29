@@ -8,7 +8,8 @@ pipeline {
   stages {
     stage('Initialise') {
       steps {
-        sh 'go version'
+        sh '''go get -u github.com/karalabe/xgo
+'''
       }
     }
     stage('Build') {
