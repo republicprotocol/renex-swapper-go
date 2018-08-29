@@ -8,8 +8,7 @@ pipeline {
   stages {
     stage('Initialise') {
       steps {
-        sh '''cd $HOME/build
-'''
+        sh 'docker container ls'
       }
     }
     stage('Build') {
