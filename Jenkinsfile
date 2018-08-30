@@ -8,7 +8,7 @@ pipeline {
   stages {
     stage('Initialise') {
       steps {
-        echo 'Initialise'
+        echo 'Doing Nothing'
       }
     }
     stage('Build') {
