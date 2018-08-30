@@ -104,7 +104,7 @@ RUN set -eux; \
 	; \
 	apk del .build-deps; \
 	\
-	export PATH="/usr/local/go/bin:$PATH"; \
+	export PATH="/usr/local/bin:/usr/local/go/bin:$PATH"; \
 	go version
 
 ENV GOPATH /go
