@@ -2,7 +2,6 @@ pipeline {
   agent {
     docker {
       image 'golang:alpine'
-      args '--user=root --privileged nginx sh'
     }
 
   }
@@ -10,8 +9,8 @@ pipeline {
     stage('Initialise') {
       steps {
         sh '''sudo apk add --no-cache git mercurial
-go get -u github.com/karalabe/xgo
-'''
+              go get -u github.com/karalabe/xgo
+           '''
       }
     }
     stage('Build') {
