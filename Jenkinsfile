@@ -9,7 +9,6 @@ pipeline {
     stage('Initialise') {
       steps {
         echo 'Initialise'
-        echo 'Hello World!'
       }
     }
     stage('Build') {
