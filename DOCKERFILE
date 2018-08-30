@@ -1,5 +1,4 @@
 FROM golang:alpine
 
 RUN apk add --no-cache git
-RUN go get github.com/republicprotocol/renex-swapper-go
 RUN go get github.com/karalabe/xgo
