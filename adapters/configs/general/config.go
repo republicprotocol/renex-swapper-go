@@ -3,19 +3,24 @@ package config
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io/ioutil"
-	"os"
 	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/republicprotocol/renex-swapper-go/utils"
 )
+
+var DefaultConfig = Config{
+	Version:             "0.1.0",
+	SupportedCurrencies: []string{"ETH", "BTC"},
+	path:                utils.GetHome() + "/.swapper/config.json",
+	mu:                  new(sync.RWMutex),
+}
 
 type Config struct {
 	Version             string   `json:"version"`
 	SupportedCurrencies []string `json:"supportedCurrencies"`
 	AuthorizedAddresses []string `json:"authorizedAddresses"`
-	Watchdog            string   `json:"watchdogURL"`
 
 	mu   *sync.RWMutex
 	path string
@@ -23,16 +28,18 @@ type Config struct {
 
 var ErrUnSupportedPriorityCode = errors.New("Unsupported Priority Code")
 
-func LoadConfig(path string) (Config, error) {
+func NewConfig() Config {
 	var config Config
-	config.path = path
+	config.path = utils.GetHome() + "/.swapper/config.json"
 	config.mu = new(sync.RWMutex)
-	raw, err := ioutil.ReadFile(path)
+	raw, err := ioutil.ReadFile(config.path)
 	if err != nil {
-		return config, err
+		return DefaultConfig
 	}
-	json.Unmarshal(raw, &config)
-	return config, nil
+	if err := json.Unmarshal(raw, &config); err != nil {
+		return DefaultConfig
+	}
+	return config
 }
 
 func (config *Config) Update() error {
@@ -40,7 +47,7 @@ func (config *Config) Update() error {
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(config.path, data, 700)
+	return ioutil.WriteFile(config.path, data, 0644)
 }
 
 func (config *Config) GetVersion() string {
@@ -59,21 +66,11 @@ func (config *Config) GetAuthorizedAddresses() []common.Address {
 	return addrs
 }
 
-func (config *Config) StoreLocation() (string, error) {
-	winHome := os.Getenv("userprofile")
-	unixHome := os.Getenv("HOME")
-
-	if unixHome != "" {
-		return unixHome + "/.swapper/db", nil
-	}
-
-	if winHome != "" {
-		return winHome + "/.swapper/db", nil
-	}
-
-	return "", fmt.Errorf("Unsupported Operating System")
+func (config *Config) StoreLocation() string {
+	return utils.GetHome() + "/.swapper/db"
 }
 
-func (config *Config) WatchdogURL() string {
-	return config.Watchdog
+func (config *Config) AuthorizeAddress(address string) error {
+	config.AuthorizedAddresses = append(config.AuthorizedAddresses, address)
+	return config.Update()
 }

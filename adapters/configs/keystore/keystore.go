@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"sync"
+
+	"github.com/republicprotocol/renex-swapper-go/utils"
 )
 
 var ErrPrefix = "Config: Keystore: %s"
@@ -50,12 +52,12 @@ func NewKeystore(priorityCodes []uint32, chains []string, path string) (Keystore
 	return &keystore, nil
 }
 
-func Load(path string) (Keystore, error) {
+func LoadConfig() (Keystore, error) {
 	var keystore keystore
-	keystore.path = path
+	keystore.path = utils.GetHome() + "/.swapper/keystore.json"
 	keystore.mu = new(sync.RWMutex)
 	keystore.keyMap = make(map[uint32][]key)
-	raw, err := ioutil.ReadFile(path)
+	raw, err := ioutil.ReadFile(keystore.path)
 	if err != nil {
 		return &keystore, err
 	}

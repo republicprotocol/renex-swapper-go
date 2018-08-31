@@ -34,31 +34,16 @@ type watchAdapter struct {
 }
 
 func main() {
-	home := getHome()
-
-	port := flag.String("port", "18516", "HTTP Atom port")
-	confPath := flag.String("config", home+"/.swapper/config.json", "Location of the config file")
-	keystrPath := flag.String("keystore", home+"/.swapper/keystore.json", "Location of the keystore file")
-	networkPath := flag.String("network", home+"/.swapper/network.json", "Location of the network file")
-
+	port := flag.String("port", "18516", "RenEx Swapper's HTTP port")
 	flag.Parse()
 
-	conf, err := config.LoadConfig(*confPath)
+	conf := config.NewConfig()
+	keystr, err := keystore.LoadConfig()
 	if err != nil {
 		panic(err)
 	}
-
-	keystr, err := keystore.Load(*keystrPath)
-	if err != nil {
-		panic(err)
-	}
-
-	net, err := network.LoadNetwork(*networkPath)
-
-	dbLoc, err := conf.StoreLocation()
-	if err != nil {
-		panic(err)
-	}
+	net := network.NewNetwork("")
+	dbLoc := conf.StoreLocation()
 
 	db, err := leveldb.NewLDBStore(dbLoc)
 	if err != nil {
@@ -138,7 +123,7 @@ func buildWatcher(gen config.Config, net network.Config, keystore keystore.Keyst
 
 	ethBinder, err := binder.NewBinder(privKey, ethConn)
 
-	watchdog := client.NewWatchdogHTTPClient(gen)
+	watchdog := client.NewWatchdogHTTPClient(net)
 
 	atomBuilder, err := atoms.NewAtomBuilder(net, keystore)
 	wAdapter := watchAdapter{
@@ -150,19 +135,4 @@ func buildWatcher(gen config.Config, net network.Config, keystore keystore.Keyst
 
 	watcher := watch.NewWatch(&wAdapter, state)
 	return watcher, nil
-}
-
-func getHome() string {
-	winHome := os.Getenv("userprofile")
-	unixHome := os.Getenv("HOME")
-
-	if winHome != "" {
-		return winHome
-	}
-
-	if unixHome != "" {
-		return unixHome
-	}
-
-	panic("unknown Operating System")
 }

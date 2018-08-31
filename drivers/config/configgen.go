@@ -10,11 +10,7 @@ import (
 )
 
 func main() {
-	cfg, err := config.LoadConfig(os.Getenv("HOME") + "/.swapper/config.json")
-	if err != nil {
-		panic(err)
-	}
-
+	cfg := config.NewConfig()
 	addresses := []string{}
 	reader := bufio.NewReader(os.Stdin)
 	fmt.Print("Authorize your ethereum address(es): ")
@@ -26,8 +22,6 @@ func main() {
 		addresses = append(addresses, strings.Trim(text, "\n"))
 	}
 	cfg.AuthorizedAddresses = addresses
-	cfg.StoreLoc = os.Getenv("HOME") + "/.swapper/db"
-
 	if err := cfg.Update(); err != nil {
 		panic(err)
 	}

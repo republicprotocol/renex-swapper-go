@@ -10,59 +10,45 @@ import (
 	config "github.com/republicprotocol/renex-swapper-go/adapters/configs/general"
 	"github.com/republicprotocol/renex-swapper-go/adapters/configs/keystore"
 	"github.com/republicprotocol/renex-swapper-go/adapters/configs/network"
+	"github.com/republicprotocol/renex-swapper-go/utils"
 )
 
 func main() {
-	home := getHome()
-	ethNet := flag.String("ethereum", "kovan", "Which ethereum network to use")
-	btcNet := flag.String("bitcoin", "testnet", "Which bitcoin network to use")
+	home := utils.GetHome()
+	repNet := flag.String("republic", "nightly", "which republic protocol network to use")
+	flag.Parse()
 
-	keystore.NewKeystore([]uint32{0, 1}, []string{*btcNet, *ethNet}, home+"/.swapper/keystore.json")
+	keystore.NewKeystore([]uint32{0, 1}, []string{"testnet", "kovan"}, home+"/.swapper/keystore.json")
 
-	cfg, err := config.LoadConfig(home + "/.swapper/config.json")
-	if err != nil {
-		panic(err)
+	var republicNet network.RepublicNetwork
+	switch *repNet {
+	case "nightly":
+		republicNet = network.RepublicNetworkNightly
+	case "falcon":
+		republicNet = network.RepublicNetworkFalcon
+	case "testnet":
+		republicNet = network.RepublicNetworkTestnet
+	default:
+		panic("Unknown Republic Network")
 	}
 
+	cfg := config.NewConfig()
+	net := network.NewNetwork(republicNet)
 	addresses := []string{}
 	reader := bufio.NewReader(os.Stdin)
-	fmt.Print("Enter your ethereum address(es): ")
+	fmt.Print("\nEnter your RenEx Ethereum address: ")
 	text, err := reader.ReadString('\n')
 	if err != nil {
 		panic(err)
 	}
 	addresses = append(addresses, strings.Trim(text, "\r\n"))
-
 	cfg.AuthorizedAddresses = addresses
-	cfg.Watchdog = "renex-watchdog-testnet.herokuapp.com"
 
 	if err := cfg.Update(); err != nil {
 		panic(err)
 	}
 
-	net, err := network.LoadNetwork(home + "/.swapper/network.json")
-	if err != nil {
-		panic(err)
-	}
-
-	net.Bitcoin.URL = "https://testnet.blockchain.info"
-
 	if err := net.Update(); err != nil {
 		panic(err)
 	}
-}
-
-func getHome() string {
-	winHome := os.Getenv("userprofile")
-	unixHome := os.Getenv("HOME")
-
-	if winHome != "" {
-		return winHome
-	}
-
-	if unixHome != "" {
-		return unixHome
-	}
-
-	panic("unknown Operating System")
 }

@@ -188,7 +188,7 @@ func bitcoinBalance(conf network.Config, key keystore.Key) (Balance, error) {
 		return Balance{}, err
 	}
 
-	balance, err := conn.Balance(btcAddr)
+	balance, err := conn.Balance(btcAddr.EncodeAddress())
 	if err != nil {
 		return Balance{}, err
 	}

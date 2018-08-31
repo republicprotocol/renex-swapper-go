@@ -3,14 +3,26 @@ package network
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"sync"
+
+	"github.com/republicprotocol/renex-swapper-go/utils"
 )
 
+type RepublicNetwork string
+
+var RepublicNetworkNightly = RepublicNetwork("nightly")
+var RepublicNetworkFalcon = RepublicNetwork("falcon")
+var RepublicNetworkTestnet = RepublicNetwork("testnet")
+
+var ErrUnknownRepublicNetwork = fmt.Errorf("Unknown Republic Network")
+
 type Config struct {
-	Network  string          `json:"network"`
+	Network  RepublicNetwork `json:"network"`
 	Ethereum EthereumNetwork `json:"ethereum"`
 	Bitcoin  BitcoinNetwork  `json:"bitcoin"`
+	Watchdog string          `json:"watchdog"`
 
 	mu   *sync.RWMutex
 	path string
@@ -18,16 +30,31 @@ type Config struct {
 
 var ErrUnSupportedPriorityCode = errors.New("Un Supported Priority Code")
 
-func LoadNetwork(path string) (Config, error) {
-	var network Config
-	network.path = path
-	network.mu = new(sync.RWMutex)
-	raw, err := ioutil.ReadFile(path)
-	if err != nil {
-		return network, err
+func buildNetwork(net RepublicNetwork) Config {
+	eth := NewEthNetwork(net)
+	btc := NewBtcNetwork(net)
+	return Config{
+		Network:  net,
+		Ethereum: eth,
+		Bitcoin:  btc,
+		path:     utils.GetHome() + "/.swapper/network.json",
+		mu:       new(sync.RWMutex),
+		Watchdog: fmt.Sprintf("renex-watchdog-%s.herokuapp.com", net),
 	}
-	json.Unmarshal(raw, &network)
-	return network, nil
+}
+
+func NewNetwork(net RepublicNetwork) Config {
+	var network Config
+	network.mu = new(sync.RWMutex)
+	network.path = utils.GetHome() + "/.swapper/network.json"
+	raw, err := ioutil.ReadFile(network.path)
+	if err != nil {
+		return buildNetwork(net)
+	}
+	if err := json.Unmarshal(raw, &network); err != nil {
+		return buildNetwork(net)
+	}
+	return network
 }
 
 func (network *Config) Update() error {
@@ -35,5 +62,5 @@ func (network *Config) Update() error {
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(network.path, data, 700)
+	return ioutil.WriteFile(network.path, data, 0644)
 }

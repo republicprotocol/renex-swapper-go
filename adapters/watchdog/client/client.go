@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/republicprotocol/renex-swapper-go/adapters/configs/general"
+	"github.com/republicprotocol/renex-swapper-go/adapters/configs/network"
 	"github.com/republicprotocol/renex-swapper-go/services/watchdog"
 )
 
@@ -15,9 +15,9 @@ type watchdogHTTPClient struct {
 
 // NewWatchdogHTTPClient creates a new WatchdogClient interface, that interacts
 // with Watchdog over http.
-func NewWatchdogHTTPClient(config config.Config) watchdog.WatchdogClient {
+func NewWatchdogHTTPClient(net network.Config) watchdog.WatchdogClient {
 	return &watchdogHTTPClient{
-		ipAddress: config.WatchdogURL(),
+		ipAddress: net.Watchdog,
 	}
 }
 
