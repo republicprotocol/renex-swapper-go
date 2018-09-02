@@ -51,8 +51,9 @@ To open an atomic swap on RenEx:
 
 ### How to buy Bitcoin
 
-1. Turn on the swapper by running the following command
-```sh swapper```
+1. Turn on the swapper by running the following command.
+
+`swapper`
 
 2. Make sure that you donot close this terminal before the swap is completed. If you have to close the terminal for some reason please run the command again once you open it. *You have to keep the swapper running to do the atomic swap*
 
@@ -72,7 +73,8 @@ To open an atomic swap on RenEx:
 ### How to buy Ether
 
 1. Turn on the swapper by running the following command
-```sh swapper```
+
+```swapper```
 
 2. Make sure that you donot close this terminal before the swap is completed. If you have to close the terminal for some reason please run the command again once you open it. *You have to keep the swapper running to do the atomic swap*
 
