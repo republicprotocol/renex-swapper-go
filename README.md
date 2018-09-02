@@ -48,3 +48,45 @@ To open an atomic swap on RenEx:
 4. Open the "Balances" tab and ensure that you have the necessary funds in the Ethereum and Bitcoin addresses.
 
 5. Open the "Exchange" tab and open an order.
+
+### How to buy Bitcoin
+
+1. Turn on the swapper by running the following command
+```sh swapper```
+
+2. Make sure that you donot close this terminal before the swap is completed. If you have to close the terminal for some reason please run the command again once you open it. *You have to keep the swapper running to do the atomic swap*
+
+3. Open https://testnet.ren.exchange.
+
+4. Select the Ethereum / Bitcoin trading pair.
+
+5. Click "Connect to atomic swapper".
+
+6. Authorize your atomic swapping software to execute your atomic swaps.
+
+7. Open the "Balances" tab and ensure that you have the necessary funds in your swapper's Ethereum address under "Balances held by Atom", and at least 0.6% of the intended trading amount in your RenEx account.
+
+8. Open the "Exchange" tab and open a Buy BTC-ETH order for the intended amount.
+
+
+### How to buy Ether
+
+1. Turn on the swapper by running the following command
+```sh swapper```
+
+2. Make sure that you donot close this terminal before the swap is completed. If you have to close the terminal for some reason please run the command again once you open it. *You have to keep the swapper running to do the atomic swap*
+
+3. Open https://testnet.ren.exchange.
+
+4. Select the Ethereum / Bitcoin trading pair.
+
+5. Click "Connect to atomic swapper".
+
+6. Authorize your atomic swapping software to execute your atomic swaps.
+
+7. Open the "Balances" tab and ensure that you have the necessary funds in your swapper's Bitcoin address under "Balances held by Atom", some amount in your ethereum address (to pay for the transaction fees), and at least 0.6% of the intended trading amount in your RenEx account.
+
+8. Open the "Exchange" tab and open a Sell BTC-ETH order for the intended amount.
+
+#### Note:
+The Bitcoin fees are set to high (500000 Satoshi) for faster trades in the testnet, it will be reverted to standard (10000 Satoshi) in the mainnet. 
