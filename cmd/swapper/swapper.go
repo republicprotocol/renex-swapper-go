@@ -19,6 +19,7 @@ import (
 	"github.com/republicprotocol/renex-swapper-go/adapters/configs/network"
 	"github.com/republicprotocol/renex-swapper-go/adapters/http"
 	loggerAdapter "github.com/republicprotocol/renex-swapper-go/adapters/logger"
+	infoNetwork "github.com/republicprotocol/renex-swapper-go/adapters/network"
 	"github.com/republicprotocol/renex-swapper-go/adapters/store/leveldb"
 	"github.com/republicprotocol/renex-swapper-go/adapters/watchdog/client"
 	"github.com/republicprotocol/renex-swapper-go/services/guardian"
@@ -31,6 +32,7 @@ type watchAdapter struct {
 	binder.Binder
 	watchdog.WatchdogClient
 	logger.Logger
+	infoNetwork.Network
 }
 
 func main() {
@@ -38,7 +40,7 @@ func main() {
 	flag.Parse()
 
 	conf := config.NewConfig()
-	keystr, err := keystore.LoadConfig()
+	keystr, err := keystore.LoadKeystore()
 	if err != nil {
 		panic(err)
 	}
