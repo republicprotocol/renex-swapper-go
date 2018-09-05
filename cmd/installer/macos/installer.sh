@@ -18,3 +18,4 @@ echo "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.
   </dict>
 </plist>" > $HOME/Library/LaunchAgents/com.renex.swapper.plist
 
+launchctl load -w $HOME/Library/LaunchAgents/com.renex.swapper.plist
