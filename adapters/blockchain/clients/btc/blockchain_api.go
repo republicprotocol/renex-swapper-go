@@ -15,7 +15,7 @@ type RawTransaction struct {
 	VoutSize         uint32   `json:"vout_sz"`
 	Version          uint8    `json:"ver"`
 	TransactionHash  string   `json:"hash"`
-	TransactionIndex string   `json:"tx_index"`
+	TransactionIndex uint64   `json:"tx_index"`
 	Inputs           []Input  `json:"inputs"`
 	Outputs          []Output `json:"out"`
 }
@@ -27,14 +27,14 @@ type Input struct {
 
 type PreviousOut struct {
 	TransactionHash  string `json:"hash"`
-	Value            string `json:"value"`
-	TransactionIndex string `json:"tx_index"`
-	VoutNumber       string `json:"n"`
+	Value            uint64 `json:"value"`
+	TransactionIndex uint64 `json:"tx_index"`
+	VoutNumber       uint8  `json:"n"`
 }
 
 type Output struct {
 	TransactionHash string `json:"hash"`
-	Value           string `json:"value"`
+	Value           uint64 `json:"value"`
 	Script          string `json:"script"`
 }
 
@@ -84,8 +84,7 @@ func (conn *Conn) Mined(txhash string, confirmations int64) (bool, error) {
 		return false, err
 	}
 
-	if tx.BlockHeight != 0 &&
-		latestBlock.Height-tx.BlockHeight >= confirmations {
+	if tx.BlockHeight != 0 {
 		return true, nil
 	}
 
@@ -104,7 +103,7 @@ type UnspentOutputs struct {
 }
 
 func (conn *Conn) GetUnspentOutputs(address string) (UnspentOutputs, error) {
-	resp, err := http.Get(fmt.Sprintf(conn.URL + "/unspent?active=" + address))
+	resp, err := http.Get(fmt.Sprintf(conn.URL + "/unspent?active=" + address + "&confirmations=6"))
 	if err != nil {
 		return UnspentOutputs{}, err
 	}
@@ -116,6 +115,7 @@ func (conn *Conn) GetUnspentOutputs(address string) (UnspentOutputs, error) {
 }
 
 func (conn *Conn) SubmitSignedTransaction(stx string) error {
+	fmt.Println("STX: ", stx)
 	data := url.Values{}
 	data.Set("tx", stx)
 	client := &http.Client{}
