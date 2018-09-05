@@ -9,8 +9,11 @@ import (
 	"time"
 
 	"github.com/republicprotocol/renex-swapper-go/domains/match"
-	"github.com/republicprotocol/renex-swapper-go/services/logger"
 )
+
+type Logger interface {
+	LogInfo([32]byte, string)
+}
 
 // SwapStatus stores the swap status
 type SwapStatus struct {
@@ -43,7 +46,7 @@ type PendingSwaps struct {
 }
 
 type state struct {
-	logger.Logger
+	Logger
 	Store
 	swapMu *sync.RWMutex
 }
@@ -53,15 +56,6 @@ type State interface {
 	DeleteSwap([32]byte) error
 	ExecutableSwaps(bool) ([][32]byte, error)
 	RefundableSwaps() ([][32]byte, error)
-
-	InitiateDetails([32]byte) (int64, [32]byte, error)
-	PutInitiateDetails([32]byte, int64, [32]byte) error
-
-	RedeemDetails([32]byte) ([32]byte, error)
-	PutRedeemDetails([32]byte, [32]byte) error
-
-	Status([32]byte) string
-	PutStatus([32]byte, string) error
 
 	Match([32]byte) (match.Match, error)
 	PutMatch([32]byte, match.Match) error
@@ -79,7 +73,7 @@ type State interface {
 	Redeemed([32]byte) error
 }
 
-func NewState(store Store, logger logger.Logger) State {
+func NewState(store Store, logger Logger) State {
 	return &state{
 		Store:  store,
 		Logger: logger,
