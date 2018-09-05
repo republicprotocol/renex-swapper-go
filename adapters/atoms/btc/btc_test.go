@@ -28,6 +28,7 @@ var _ = Describe("bitcoin", func() {
 	var orderID, failedOrderID [32]byte
 
 	var value *big.Int
+	var fee int64
 	var validity int64
 	var secret, secretHash [32]byte
 	var err error
@@ -40,7 +41,9 @@ var _ = Describe("bitcoin", func() {
 		bobPrivKey, err := keystore.RandomBitcoinKeyString("testnet")
 		Expect(err).ShouldNot(HaveOccurred())
 
-		aliceKey, err := keystore.NewKey("91ctdZvijNER2A8p1gBhHEAthLp7TDeWcVJ5QLdsXsfQNN4BQgF", 0, "testnet")
+		// 91ctdZvijNER2A8p1gBhHEAthLp7TDeWcVJ5QLdsXsfQNN4BQgF
+		aliceKey, err := keystore.NewKey("92RL5hiC3sSvZM4qxsZvWyZxqXfePdv7cPEMJrheaTCCw5CNaiG", 0, "testnet")
+
 		Expect(err).ShouldNot(HaveOccurred())
 
 		bobKey, err := keystore.NewKey(bobPrivKey, 0, "testnet")
@@ -78,6 +81,7 @@ var _ = Describe("bitcoin", func() {
 		resAtom = NewBitcoinAtom(&adapter, connection, bobKey, orderID)
 
 		value = big.NewInt(1000000)
+		fee = 10000
 		validity = time.Now().Unix() + 48*60*60
 	})
 
@@ -98,15 +102,15 @@ var _ = Describe("bitcoin", func() {
 	})
 
 	It("can redeem a btc atomic swap", func() {
-		// before, err := connection.Client.GetReceivedByAddress(_bobAddr)
-		// Expect(err).ShouldNot(HaveOccurred())
+		before, err := connection.Balance(_bobAddr.EncodeAddress())
+		Expect(err).ShouldNot(HaveOccurred())
 		err = resAtom.Redeem(secret)
 		Expect(err).ShouldNot(HaveOccurred())
-		// after, err := connection.Client.GetReceivedByAddress(_bobAddr)
-		// Expect(err).ShouldNot(HaveOccurred())
+		after, err := connection.Balance(_bobAddr.EncodeAddress())
+		Expect(err).ShouldNot(HaveOccurred())
 		data, err = resAtom.Serialize()
 		Expect(err).ShouldNot(HaveOccurred())
-		// Expect(after - before).Should(Equal(btcutil.Amount(990000)))
+		Expect(after - before).Should(Equal(value.Int64() - fee))
 	})
 
 	It("can audit secret after a btc atomic swap", func() {
@@ -122,13 +126,13 @@ var _ = Describe("bitcoin", func() {
 		secretHash = sha256.Sum256(secret[:])
 		err = reqAtomFailed.Initiate([]byte(aliceAddr), secretHash, value, 0)
 		Expect(err).ShouldNot(HaveOccurred())
-		// before, err := connection.Client.GetReceivedByAddress(_aliceAddr)
-		// Expect(err).ShouldNot(HaveOccurred())
+		before, err := connection.Balance(_aliceAddr.EncodeAddress())
+		Expect(err).ShouldNot(HaveOccurred())
 		err = reqAtomFailed.Refund()
 		Expect(err).ShouldNot(HaveOccurred())
-		// after, err := connection.Client.GetReceivedByAddress(_aliceAddr)
-		// Expect(err).ShouldNot(HaveOccurred())
-		// Expect(after - before).Should(Equal(btcutil.Amount(990000)))
+		after, err := connection.Balance(_aliceAddr.EncodeAddress())
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(after - before).Should(Equal(value.Int64() - fee))
 	})
 })
 
