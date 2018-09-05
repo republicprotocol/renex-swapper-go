@@ -52,7 +52,7 @@ func NewKeystore(priorityCodes []uint32, chains []string, path string) (Keystore
 	return &keystore, nil
 }
 
-func LoadConfig() (Keystore, error) {
+func LoadKeystore() (Keystore, error) {
 	var keystore keystore
 	keystore.path = utils.GetHome() + "/.swapper/keystore.json"
 	keystore.mu = new(sync.RWMutex)
