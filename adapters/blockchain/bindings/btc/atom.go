@@ -247,7 +247,7 @@ func Initiate(conn btc.Conn, myKey keystore.Key, participantAddress string, valu
 		ContractTxHash: txHash.CloneBytes(),
 		RefundTx:       refundBuf.Bytes(),
 		RefundTxHash:   refundTx.TxHash(),
-	}, conn.WaitTillMined(txHash, 0)
+	}, conn.WaitTillMined(txHash, 1)
 }
 
 func Redeem(conn btc.Conn, myKey keystore.Key, contract, contractTxBytes []byte, secret [32]byte) (redeemResult, error) {
@@ -311,7 +311,7 @@ func Redeem(conn btc.Conn, myKey keystore.Key, contract, contractTxBytes []byte,
 	redeemTx := wire.NewMsgTx(txVersion)
 	redeemTx.LockTime = uint32(pushes.LockTime)
 	redeemTx.AddTxIn(wire.NewTxIn(&contractOutPoint, nil, nil))
-	redeemTx.AddTxOut(wire.NewTxOut(contractTx.TxOut[contractOut].Value-10000, outScript))
+	redeemTx.AddTxOut(wire.NewTxOut(contractTx.TxOut[contractOut].Value-500000, outScript))
 
 	redeemSig, redeemPubKey, err := createSig(conn, redeemTx, 0, contract, myKey)
 	if err != nil {
@@ -350,7 +350,7 @@ func Redeem(conn btc.Conn, myKey keystore.Key, contract, contractTxBytes []byte,
 	return redeemResult{
 		RedeemTx:     buf.Bytes(),
 		RedeemTxHash: redeemTxHash,
-	}, conn.WaitTillMined(txHash, 0)
+	}, conn.WaitTillMined(txHash, 1)
 
 }
 
@@ -380,7 +380,7 @@ func Refund(conn btc.Conn, myKey keystore.Key, contract, contractTxBytes []byte)
 		return err
 	}
 
-	return conn.WaitTillMined(txHash, 0)
+	return conn.WaitTillMined(txHash, 1)
 }
 
 func Audit(conn btc.Conn, contract, contractTxBytes []byte) (readResult, error) {
