@@ -74,6 +74,10 @@ func walletPort(params *chaincfg.Params) string {
 }
 
 func (conn *Conn) SignTransaction(tx *wire.MsgTx, key keystore.Key) (*wire.MsgTx, bool, error) {
+	// TODO: Fees are set high, for faster testnet transactions, decrease them
+	// before mainnet
+	var fee = int64(500000)
+
 	addr, err := key.GetAddress()
 	if err != nil {
 		return nil, false, fmt.Errorf("your keystore is "+
@@ -87,17 +91,12 @@ func (conn *Conn) SignTransaction(tx *wire.MsgTx, key keystore.Key) (*wire.MsgTx
 	}
 
 	var value int64
-
 	for _, j := range tx.TxOut {
 		value = value + j.Value
 	}
+	value = value + fee
 
 	unspentValue, err := conn.Balance(string(addr))
-	if err != nil {
-		return nil, false, err
-	}
-
-	utxos, err := conn.GetUnspentOutputs(string(addr))
 	if err != nil {
 		return nil, false, err
 	}
@@ -105,6 +104,11 @@ func (conn *Conn) SignTransaction(tx *wire.MsgTx, key keystore.Key) (*wire.MsgTx
 	if value > unspentValue {
 		return nil, false, fmt.Errorf("Not enough balance"+
 			"required:%d current:%d", value, unspentValue)
+	}
+
+	utxos, err := conn.GetUnspentOutputs(string(addr))
+	if err != nil {
+		return nil, false, err
 	}
 
 	for _, j := range utxos.Outputs {
@@ -126,13 +130,13 @@ func (conn *Conn) SignTransaction(tx *wire.MsgTx, key keystore.Key) (*wire.MsgTx
 		tx.AddTxIn(wire.NewTxIn(wire.NewOutPoint(hash, j.Vout), ScriptPubKey, [][]byte{}))
 		value = value - j.Amount
 	}
-	P2PKHScript, err := txscript.PayToAddrScript(myAddr)
-	if err != nil {
-		return nil, false, err
-	}
 
-	if value <= 0 {
-		tx.AddTxOut(wire.NewTxOut(int64(-value)-10000, P2PKHScript))
+	if value < 0 {
+		P2PKHScript, err := txscript.PayToAddrScript(myAddr)
+		if err != nil {
+			return nil, false, err
+		}
+		tx.AddTxOut(wire.NewTxOut(int64(-value), P2PKHScript))
 	}
 
 	privKey, err := key.GetKey()
