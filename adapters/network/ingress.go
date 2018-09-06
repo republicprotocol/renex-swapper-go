@@ -67,7 +67,7 @@ func (ingress *ingress) SendSwapDetails(orderID order.ID, swapDetails []byte) er
 
 func (ingress *ingress) ReceiveOwnerAddress(orderID order.ID, waitTill int64) ([]byte, error) {
 	for {
-		resp, err := http.Get(fmt.Sprintf("https://" + ingress.hostAddress + "/address?orderID=" + hex.EncodeToString(orderID[:])))
+		resp, err := http.Get(fmt.Sprintf("https://" + ingress.hostAddress + "/address/" + hex.EncodeToString(orderID[:])))
 		if err != nil {
 			return nil, err
 		}
@@ -90,7 +90,7 @@ func (ingress *ingress) ReceiveOwnerAddress(orderID order.ID, waitTill int64) ([
 
 func (ingress *ingress) ReceiveSwapDetails(orderID order.ID, waitTill int64) ([]byte, error) {
 	for {
-		resp, err := http.Get(fmt.Sprintf("https://" + ingress.hostAddress + "/swap?orderID=" + hex.EncodeToString(orderID[:])))
+		resp, err := http.Get(fmt.Sprintf("https://" + ingress.hostAddress + "/swap/" + hex.EncodeToString(orderID[:])))
 		if err != nil {
 			return nil, err
 		}

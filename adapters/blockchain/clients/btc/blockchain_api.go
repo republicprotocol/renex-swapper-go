@@ -27,14 +27,14 @@ type Input struct {
 
 type PreviousOut struct {
 	TransactionHash  string `json:"hash"`
-	Value            uint64 `json:"value"`
+	Value            int64  `json:"value"`
 	TransactionIndex uint64 `json:"tx_index"`
 	VoutNumber       uint8  `json:"n"`
 }
 
 type Output struct {
 	TransactionHash string `json:"hash"`
-	Value           uint64 `json:"value"`
+	Value           int64  `json:"value"`
 	Script          string `json:"script"`
 }
 
@@ -129,4 +129,8 @@ func (conn *Conn) SubmitSignedTransaction(stx string) error {
 		return err
 	}
 	return nil
+}
+
+func (conn *Conn) GetRawTransactionsByAddress(addr string, offset, limit int) ([]RawTransaction, error) {
+	return []RawTransaction{}, nil
 }

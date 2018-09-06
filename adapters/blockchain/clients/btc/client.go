@@ -47,19 +47,6 @@ func ConnectWithParams(chain, url string) (Conn, error) {
 	}, nil
 }
 
-func (conn *Conn) PromptPublishTx(tx *wire.MsgTx, name string) (*chainhash.Hash, error) {
-	buf := bytes.NewBuffer([]byte{})
-	if err := tx.Serialize(buf); err != nil {
-		return nil, err
-	}
-	stx := hex.EncodeToString(buf.Bytes())
-	if err := conn.SubmitSignedTransaction(stx); err != nil {
-		return nil, err
-	}
-	hash := tx.TxHash()
-	return &hash, nil
-}
-
 func walletPort(params *chaincfg.Params) string {
 	switch params {
 	case &chaincfg.MainNetParams:
@@ -73,11 +60,7 @@ func walletPort(params *chaincfg.Params) string {
 	}
 }
 
-func (conn *Conn) SignTransaction(tx *wire.MsgTx, key keystore.Key) (*wire.MsgTx, bool, error) {
-	// TODO: Fees are set high, for faster testnet transactions, decrease them
-	// before mainnet
-	var fee = int64(500000)
-
+func (conn *Conn) SignTransaction(tx *wire.MsgTx, key keystore.Key, fee int64) (*wire.MsgTx, bool, error) {
 	addr, err := key.GetAddress()
 	if err != nil {
 		return nil, false, fmt.Errorf("your keystore is "+
@@ -168,11 +151,18 @@ func (conn *Conn) Balance(address string) (int64, error) {
 	return balance, nil
 }
 
-// WaitTillMined waits for the transactions to be mined, and gets the given
-// number of confirmations.
-func (conn *Conn) WaitTillMined(txHash *chainhash.Hash, confirmations int64) error {
+func (conn *Conn) PublishTransaction(tx *wire.MsgTx, confirmations int64) error {
+	buf := bytes.NewBuffer([]byte{})
+	if err := tx.Serialize(buf); err != nil {
+		return err
+	}
+	stx := hex.EncodeToString(buf.Bytes())
+	if err := conn.SubmitSignedTransaction(stx); err != nil {
+		return err
+	}
+
 	for {
-		mined, err := conn.Mined(txHash.String(), confirmations)
+		mined, err := conn.Mined(tx.TxHash().String(), confirmations)
 		if err != nil {
 			return err
 		}

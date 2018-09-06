@@ -49,6 +49,21 @@ func NewBitcoinAtom(adapter Adapter, connection btc.Conn, key keystore.Key, orde
 
 // Initiate a new Atom swap by calling Bitcoin
 func (atom *BitcoinAtom) Initiate(to []byte, hash [32]byte, value *big.Int, expiry int64) error {
+	addr, err := atom.Key.GetAddress()
+	if err != nil {
+		return InitiateResponse{}, NewErrDecodeAddressFailed(string(addr), err)
+	}
+
+	personalAddr, err := addressToPubKeyHash(string(addr))
+	if err != nil {
+		return InitiateResponse{}, err
+	}
+
+	foreignAddr, err := addressToPubKeyHash(string(addr))
+	if err != nil {
+		return InitiateResponse{}, err
+	}
+
 	result, err := bindings.Initiate(atom.connection, atom.key, string(to), value.Int64(), hash[:], expiry)
 	if err != nil {
 		return err
