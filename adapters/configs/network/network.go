@@ -23,6 +23,7 @@ type Config struct {
 	Ethereum EthereumNetwork `json:"ethereum"`
 	Bitcoin  BitcoinNetwork  `json:"bitcoin"`
 	Watchdog string          `json:"watchdog"`
+	Ingress  string          `json:"ingress"`
 
 	mu   *sync.RWMutex
 	path string
