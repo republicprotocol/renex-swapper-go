@@ -8,9 +8,6 @@ import (
 	"os"
 	"os/signal"
 
-	"github.com/republicprotocol/renex-swapper-go/services/logger"
-	"github.com/republicprotocol/renex-swapper-go/services/watchdog"
-
 	"github.com/republicprotocol/renex-swapper-go/adapters/atoms"
 	"github.com/republicprotocol/renex-swapper-go/adapters/blockchain/binder"
 	ethClient "github.com/republicprotocol/renex-swapper-go/adapters/blockchain/clients/eth"
@@ -30,9 +27,10 @@ import (
 type watchAdapter struct {
 	atoms.AtomBuilder
 	binder.Binder
-	watchdog.WatchdogClient
-	logger.Logger
+	client.WatchdogClient
+	loggerAdapter.Logger
 	infoNetwork.Network
+	store.State
 }
 
 func main() {
@@ -133,6 +131,8 @@ func buildWatcher(gen config.Config, net network.Config, keystore keystore.Keyst
 		ethBinder,
 		watchdog,
 		loggerAdapter.NewStdOutLogger(),
+		infoNetwork.NewIngressNetwork(net.Ingress),
+		state,
 	}
 
 	watcher := watch.NewWatch(&wAdapter, state)
