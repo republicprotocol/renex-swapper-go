@@ -11,42 +11,26 @@ import (
 	"github.com/republicprotocol/renex-swapper-go/adapters/atoms/btc"
 	"github.com/republicprotocol/renex-swapper-go/adapters/atoms/eth"
 	"github.com/republicprotocol/renex-swapper-go/adapters/configs/keystore"
-	"github.com/republicprotocol/renex-swapper-go/adapters/configs/network"
+	netConf "github.com/republicprotocol/renex-swapper-go/adapters/configs/network"
+	"github.com/republicprotocol/renex-swapper-go/adapters/network"
 
-	"github.com/republicprotocol/renex-swapper-go/adapters/blockchain/binder"
 	btcClient "github.com/republicprotocol/renex-swapper-go/adapters/blockchain/clients/btc"
 	ethClient "github.com/republicprotocol/renex-swapper-go/adapters/blockchain/clients/eth"
 )
 
 type atomBuilder struct {
-	binder   binder.Binder
+	network  network.Network
 	keystore keystore.Keystore
-	config   network.Config
+	config   netConf.Config
 }
 
 type AtomBuilder interface {
 	BuildAtoms(state store.State, m match.Match) (swap.Atom, swap.Atom, error)
 }
 
-func NewAtomBuilder(config network.Config, keystore keystore.Keystore) (AtomBuilder, error) {
-	ethConn, err := ethClient.Connect(config)
-	if err != nil {
-		return nil, err
-	}
-	ethKey, err := keystore.GetKey(1, 0)
-	if err != nil {
-		return nil, err
-	}
-	privKey, err := ethKey.GetKey()
-	if err != nil {
-		return nil, err
-	}
-	b, err := binder.NewBinder(privKey, ethConn)
-	if err != nil {
-		return nil, err
-	}
+func NewAtomBuilder(config netConf.Config, keystore keystore.Keystore) (AtomBuilder, error) {
 	return &atomBuilder{
-		binder:   b,
+		network:  network.NewIngressNetwork(config.Ingress),
 		keystore: keystore,
 		config:   config,
 	}, nil
@@ -56,12 +40,12 @@ func (ab *atomBuilder) BuildAtoms(state store.State, m match.Match) (swap.Atom, 
 	var personalAtom, foreignAtom swap.Atom
 	var err error
 
-	personalAtom, err = buildAtom(ab.binder, ab.keystore, ab.config, m.SendCurrency(), m.PersonalOrderID())
+	personalAtom, err = buildAtom(ab.network, ab.keystore, ab.config, m.SendCurrency(), m.PersonalOrderID())
 	if err != nil {
 		return nil, nil, err
 	}
 
-	foreignAtom, err = buildAtom(ab.binder, ab.keystore, ab.config, m.ReceiveCurrency(), m.ForeignOrderID())
+	foreignAtom, err = buildAtom(ab.network, ab.keystore, ab.config, m.ReceiveCurrency(), m.ForeignOrderID())
 	if err != nil {
 		return nil, nil, err
 	}
@@ -89,7 +73,7 @@ func (ab *atomBuilder) BuildAtoms(state store.State, m match.Match) (swap.Atom, 
 	return personalAtom, foreignAtom, nil
 }
 
-func buildAtom(binder binder.Binder, key keystore.Keystore, config network.Config, cc uint32, orderID [32]byte) (swap.Atom, error) {
+func buildAtom(net network.Network, key keystore.Keystore, config netConf.Config, cc uint32, orderID [32]byte) (swap.Atom, error) {
 	switch cc {
 	case 0:
 		conn, err := btcClient.Connect(config)
@@ -100,7 +84,7 @@ func buildAtom(binder binder.Binder, key keystore.Keystore, config network.Confi
 		if err != nil {
 			return nil, err
 		}
-		return btc.NewBitcoinAtom(&binder, conn, btcKey, orderID), nil
+		return btc.NewBitcoinAtom(net, conn, btcKey, orderID), nil
 	case 1:
 		conn, err := ethClient.Connect(config)
 		if err != nil {
@@ -110,7 +94,7 @@ func buildAtom(binder binder.Binder, key keystore.Keystore, config network.Confi
 		if err != nil {
 			return nil, err
 		}
-		return eth.NewEthereumAtom(&binder, conn, ethKey, orderID)
+		return eth.NewEthereumAtom(net, conn, ethKey, orderID)
 	}
 	return nil, fmt.Errorf("Atom Build Failed")
 }
