@@ -61,7 +61,7 @@ func (watch *watch) Start() <-chan error {
 								errs <- err
 								return
 							}
-							if watch.state.Status(swaps[i]) == swap.StatusRedeemed {
+							if watch.Status(swaps[i]) == swap.StatusRedeemed {
 								watch.state.DeleteSwap(swaps[i])
 							}
 						}(i)
@@ -74,7 +74,7 @@ func (watch *watch) Start() <-chan error {
 							errs <- err
 							return
 						}
-						if watch.state.Status(swaps[i]) == swap.StatusRedeemed {
+						if watch.Status(swaps[i]) == swap.StatusRedeemed {
 							watch.state.DeleteSwap(swaps[i])
 						}
 					}(i)
@@ -90,7 +90,7 @@ func (watch *watch) Add(orderID [32]byte) error {
 }
 
 func (watch *watch) Status(orderID [32]byte) string {
-	return watch.state.Status(orderID)
+	return watch.Status(orderID)
 }
 
 func (watch *watch) Notify() {
@@ -102,7 +102,7 @@ func (watch *watch) Stop() {
 }
 
 func (watch *watch) Swap(orderID [32]byte) error {
-	if watch.state.Status(orderID) == "UNKNOWN" {
+	if watch.Status(orderID) == "UNKNOWN" {
 		if err := watch.initiate(orderID); err != nil {
 			watch.adapter.LogError(orderID, fmt.Sprintf("failed to initiate the watcher on %v", err))
 			return fmt.Errorf("failed to initiate the watcher on %v", err)
@@ -111,7 +111,7 @@ func (watch *watch) Swap(orderID [32]byte) error {
 		watch.adapter.LogInfo(orderID, "skipping watcher initiation")
 	}
 
-	if watch.state.Status(orderID) == "PENDING" {
+	if watch.Status(orderID) == "PENDING" {
 		if err := watch.getMatch(orderID); err != nil {
 			watch.adapter.LogError(orderID, fmt.Sprintf("failed to get the matching order %v", err))
 			return fmt.Errorf("failed to get the matching order %v", err)
@@ -120,7 +120,7 @@ func (watch *watch) Swap(orderID [32]byte) error {
 		watch.adapter.LogInfo(orderID, "skipping get match")
 	}
 
-	if watch.state.Status(orderID) == "MATCHED" {
+	if watch.Status(orderID) == "MATCHED" {
 		if err := watch.setInfo(orderID); err != nil {
 			watch.adapter.LogError(orderID, fmt.Sprintf("failed to send address %v", err))
 			return fmt.Errorf("failed to send address %v", err)
@@ -129,7 +129,7 @@ func (watch *watch) Swap(orderID [32]byte) error {
 		watch.adapter.LogInfo(orderID, "skipping address submission")
 	}
 
-	if watch.state.Status(orderID) != "REDEEMED" && watch.state.Status(orderID) != "REFUNDED" && watch.state.Status(orderID) != swap.StatusComplained {
+	if watch.Status(orderID) != "REDEEMED" && watch.Status(orderID) != "REFUNDED" && watch.Status(orderID) != swap.StatusComplained {
 		if err := watch.execute(orderID); err != nil {
 			watch.adapter.LogError(orderID, fmt.Sprintf("failed to execute the atomic swap %v", err))
 			return fmt.Errorf("failed to execute the atomic swap %v", err)
@@ -162,7 +162,7 @@ func (watch *watch) setInfo(orderID [32]byte) error {
 		return err
 	}
 
-	if err := watch.state.PutStatus(orderID, swap.StatusInfoSubmitted); err != nil {
+	if err := watch.adapter.PutStatus(orderID, swap.StatusInfoSubmitted); err != nil {
 		return err
 	}
 
@@ -191,7 +191,7 @@ func (watch *watch) initiate(orderID [32]byte) error {
 		return nil
 	}
 
-	if err := watch.state.PutStatus(orderID, "PENDING"); err != nil {
+	if err := watch.adapter.PutStatus(orderID, "PENDING"); err != nil {
 		return err
 	}
 	watch.adapter.LogInfo(orderID, "started the atomic swap")
@@ -215,7 +215,7 @@ func (watch *watch) getMatch(orderID [32]byte) error {
 		return err
 	}
 
-	err = watch.state.PutStatus(orderID, "MATCHED")
+	err = watch.adapter.PutStatus(orderID, "MATCHED")
 	if err != nil {
 		return err
 	}

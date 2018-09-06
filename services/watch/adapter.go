@@ -11,7 +11,7 @@ import (
 type Adapter interface {
 	// TODO: Idiomatic Go requires this method to be called "Match" instead of
 	// "GetMatch"
-	swap.SwapAdapter
+	swap.Adapter
 	BuildAtoms(store.State, match.Match) (swap.Atom, swap.Atom, error)
 	CheckForMatch(order.ID, int64) (match.Match, error)
 }
