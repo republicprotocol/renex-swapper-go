@@ -1,7 +1,6 @@
 package binder
 
 import (
-	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"fmt"
@@ -75,39 +74,6 @@ func NewBinder(privKey *ecdsa.PrivateKey, conn ethclient.Conn) (Binder, error) {
 	}, nil
 }
 
-// SendOwnerAddress set's the owner address for atomic swap
-func (binder *Binder) SendOwnerAddress(orderID order.ID, address []byte) error {
-	binder.mu.Lock()
-	defer binder.mu.Unlock()
-	return binder.sendOwnerAddress(orderID, address)
-}
-
-func (binder *Binder) sendOwnerAddress(orderID order.ID, address []byte) error {
-	tx, err := binder.SetOwnerAddress(binder.transactOpts, orderID, address)
-	if err != nil {
-		return err
-	}
-	_, err = binder.conn.PatchedWaitMined(context.Background(), tx)
-	return err
-}
-
-// ReceiveOwnerAddress receives the owner address for atomic swap
-func (binder *Binder) ReceiveOwnerAddress(orderID order.ID, waitTill int64) ([]byte, error) {
-	for {
-		address, err := binder.GetOwnerAddress(binder.callOpts, orderID)
-
-		if bytes.Compare(address, []byte{}) != 0 && err == nil {
-			return address, nil
-		}
-
-		if time.Now().Unix() <= waitTill {
-			continue
-		}
-
-		return address, err
-	}
-}
-
 // SlashBond receives the guilty trader's atomic swap order id and slashes
 // their bond
 func (binder *Binder) SlashBond(guiltyOrderID order.ID) error {
@@ -174,39 +140,6 @@ func (binder *Binder) cancelled(orderID order.ID) bool {
 		return true
 	}
 	return false
-}
-
-// SendSwapDetails stores the swap details on the ethereum blockchain
-func (binder *Binder) SendSwapDetails(orderID order.ID, swapDetails []byte) error {
-	binder.mu.Lock()
-	defer binder.mu.Unlock()
-	return binder.sendSwapDetails(orderID, swapDetails)
-}
-
-func (binder *Binder) sendSwapDetails(orderID order.ID, swapDetails []byte) error {
-	tx, err := binder.SubmitDetails(binder.transactOpts, orderID, swapDetails)
-	if err != nil {
-		return err
-	}
-	_, err = binder.conn.PatchedWaitMined(context.Background(), tx)
-	return err
-}
-
-// ReceiveSwapDetails receives the swap details from the ethereum blockchain
-func (binder *Binder) ReceiveSwapDetails(orderID order.ID, waitTill int64) ([]byte, error) {
-	for {
-		details, err := binder.SwapDetails(binder.callOpts, orderID)
-
-		if bytes.Compare(details, []byte{}) != 0 && err == nil {
-			return details, nil
-		}
-
-		if time.Now().Unix() <= waitTill {
-			continue
-		}
-
-		return details, fmt.Errorf("Swap details expired")
-	}
 }
 
 // InfoTimeStamp returns the time at which the address for the atomic swap is submitted.
