@@ -6,16 +6,23 @@ import (
 	"net/http"
 
 	"github.com/republicprotocol/renex-swapper-go/adapters/configs/network"
-	"github.com/republicprotocol/renex-swapper-go/services/watchdog"
 )
 
+type WatchdogClient interface {
+	ComplainDelayedAddressSubmission([32]byte) error
+	ComplainDelayedRequestorInitiation([32]byte) error
+	ComplainWrongRequestorInitiation([32]byte) error
+	ComplainDelayedResponderInitiation([32]byte) error
+	ComplainWrongResponderInitiation([32]byte) error
+	ComplainDelayedRequestorRedemption([32]byte) error
+}
 type watchdogHTTPClient struct {
 	ipAddress string
 }
 
 // NewWatchdogHTTPClient creates a new WatchdogClient interface, that interacts
 // with Watchdog over http.
-func NewWatchdogHTTPClient(net network.Config) watchdog.WatchdogClient {
+func NewWatchdogHTTPClient(net network.Config) WatchdogClient {
 	return &watchdogHTTPClient{
 		ipAddress: net.Watchdog,
 	}
