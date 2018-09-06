@@ -52,6 +52,13 @@ type state struct {
 }
 
 type State interface {
+	Status([32]byte) string
+	PutStatus([32]byte, string) error
+	InitiateDetails([32]byte) (int64, [32]byte, error)
+	PutInitiateDetails([32]byte, int64, [32]byte) error
+	RedeemDetails([32]byte) ([32]byte, error)
+	PutRedeemDetails([32]byte, [32]byte) error
+
 	AddSwap([32]byte) error
 	DeleteSwap([32]byte) error
 	ExecutableSwaps(bool) ([][32]byte, error)
