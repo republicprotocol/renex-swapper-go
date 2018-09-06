@@ -5,15 +5,20 @@ import (
 	"log"
 
 	"github.com/republicprotocol/renex-swapper-go/domains/order"
-	"github.com/republicprotocol/renex-swapper-go/services/logger"
 )
 
 const white = "\033[m"
 
+type Logger interface {
+	LogInfo(orderID [32]byte, msg string)
+	LogDebug(orderID [32]byte, msg string)
+	LogError(orderID [32]byte, msg string)
+}
+
 type stdOutLogger struct {
 }
 
-func NewStdOutLogger() logger.Logger {
+func NewStdOutLogger() Logger {
 	return &stdOutLogger{}
 }
 
