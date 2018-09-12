@@ -1,6 +1,10 @@
 package utils
 
-import "os"
+import (
+	"os"
+
+	"github.com/btcsuite/btcd/chaincfg"
+)
 
 func GetHome() string {
 	winHome := os.Getenv("userprofile")
@@ -13,4 +17,17 @@ func GetHome() string {
 		return unixHome
 	}
 	panic("unknown Operating System")
+}
+
+func GetChainParams(network string) *chaincfg.Params {
+	switch network {
+	case "regtest":
+		return &chaincfg.RegressionNetParams
+	case "testnet":
+		return &chaincfg.TestNet3Params
+	case "mainnet":
+		return &chaincfg.MainNetParams
+	default:
+		panic("unimplemented")
+	}
 }

@@ -1,33 +1,10 @@
-package main
+package network
 
-import (
-	"bufio"
-	"fmt"
-	"os"
-	"strings"
+import "github.com/republicprotocol/renex-swapper-go/domains/order"
 
-	"github.com/republicprotocol/renex-swapper-go/adapters/configs/network"
-)
-
-func main() {
-	net, err := network.LoadNetwork(os.Getenv("HOME") + "/.swapper/network.json")
-	if err != nil {
-		panic(err)
-	}
-
-	reader := bufio.NewReader(os.Stdin)
-	fmt.Print("Enter Bitcoin Node IP Address: (<ipaddress>:<port>): ")
-	ipAddr, _ := reader.ReadString('\n')
-	fmt.Print("Enter Bitcoin RPC UserName: ")
-	rpcUser, _ := reader.ReadString('\n')
-	fmt.Print("Enter Bitcoin RPC Password: ")
-	rpcPass, _ := reader.ReadString('\n')
-
-	net.Bitcoin.Password = strings.Trim(rpcPass, "\n")
-	net.Bitcoin.User = strings.Trim(rpcUser, "\n")
-	net.Bitcoin.URL = strings.Trim(ipAddr, "\n")
-
-	if err := net.Update(); err != nil {
-		panic(err)
-	}
+type Network interface {
+	SendOwnerAddress(order.ID, []byte) error
+	SendSwapDetails(order.ID, []byte) error
+	RecieveOwnerAddress(order.ID, int64) ([]byte, error)
+	RecieveSwapDetails(order.ID, int64) ([]byte, error)
 }
