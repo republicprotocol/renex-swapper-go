@@ -1,0 +1,11 @@
+universal logger interface
+watcher binder interface
+Using blockchain to get the status instead of local storage.
+
+ListUnspent fix it.
+Add encryption at key level.
+
+List all the bitcoin node functionalities that are being used.
+* List UTXOs from address
+* Send Raw Signed Transaction
+* Get Transaction from tx hash
