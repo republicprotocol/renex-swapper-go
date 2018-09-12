@@ -1,10 +1,13 @@
-#!/bin/bash
+#!/bin/sh
 #Start RenEx Atomic Swapper only if it is not running
-if [ "$(ps -ef | grep -v grep | grep swapper | wc -l)" -le 0 ] 
+started=$(ps -ef | grep -v grep | grep swapper | wc -l)
+if [ $(($(ps -ef | grep -v grep | grep swapper | wc -l))) = 0 ];
 then
- # Note starting swapper not as a sudoer
- ~/.swapper/bin
- echo "RenEx Atomic Swapper Started"
+    ~/.swapper/bin
+    echo "RenEx Atomic Swapper Started"
+elif [ $((started)) = 1 ]
+then
+    echo "RenEx Atomic Swapper Already Running"
 else
- echo "RenEx Atomic Swapper Already Running"
+    echo "something wrong"    
 fi
