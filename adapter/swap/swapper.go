@@ -1,8 +1,6 @@
 package swap
 
 import (
-	"fmt"
-
 	"github.com/republicprotocol/renex-swapper-go/adapter/btc"
 	"github.com/republicprotocol/renex-swapper-go/adapter/config"
 	"github.com/republicprotocol/renex-swapper-go/adapter/eth"
@@ -52,5 +50,5 @@ func buildAtom(key keystore.Keystore, config config.Config, logger logger.Logger
 		ethKey := key.GetKey(t).(keystore.EthereumKey)
 		return eth.NewEthereumAtom(config.Ethereum, ethKey, logger, req)
 	}
-	return nil, fmt.Errorf("Atom Build Failed")
+	return nil, token.ErrUnsupportedToken
 }

@@ -11,27 +11,38 @@ import (
 const white = "\033[m"
 
 type stdOut struct {
+	UID [32]byte
 }
 
-func NewStdOut() logger.Logger {
+func NewStdOut() logger.LoggerBuilder {
 	return &stdOut{}
 }
 
-func (logger *stdOut) LogInfo(orderID [32]byte, msg string) {
-	clr := pickColor(orderID)
-	log.Println(fmt.Sprintf("[INF] (%s%s%s) %s", clr, base64.StdEncoding.EncodeToString(orderID[:]), white, msg))
+type loggerInstance struct {
+	UID [32]byte
 }
 
-func (logger *stdOut) LogDebug(orderID [32]byte, msg string) {
-	clr := pickColor(orderID)
-	log.Println(fmt.Sprintf("[DEB] (%s%s%s) %s", clr, base64.StdEncoding.EncodeToString(orderID[:]), white, msg))
+func (logger *stdOut) New(UID [32]byte) logger.Logger {
+	return &loggerInstance{
+		UID: UID,
+	}
 }
 
-func (logger *stdOut) LogError(orderID [32]byte, msg string) {
-	clr := pickColor(orderID)
-	log.Println(fmt.Sprintf("[ERR] (%s%s%s) %s", clr, base64.StdEncoding.EncodeToString(orderID[:]), white, msg))
+func (logger *loggerInstance) LogInfo(msg string) {
+	clr := pickColor(logger.UID)
+	log.Println(fmt.Sprintf("[INF] (%s%s%s) %s", clr, base64.StdEncoding.EncodeToString(logger.UID[:]), white, msg))
 }
 
-func pickColor(orderID [32]byte) string {
-	return fmt.Sprintf("\033[3%dm", int64(orderID[0])%7)
+func (logger *loggerInstance) LogDebug(msg string) {
+	clr := pickColor(logger.UID)
+	log.Println(fmt.Sprintf("[DEB] (%s%s%s) %s", clr, base64.StdEncoding.EncodeToString(logger.UID[:]), white, msg))
+}
+
+func (logger *loggerInstance) LogError(msg string) {
+	clr := pickColor(logger.UID)
+	log.Println(fmt.Sprintf("[ERR] (%s%s%s) %s", clr, base64.StdEncoding.EncodeToString(logger.UID[:]), white, msg))
+}
+
+func pickColor(UID [32]byte) string {
+	return fmt.Sprintf("\033[3%dm", int64(UID[0])%7)
 }

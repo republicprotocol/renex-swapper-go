@@ -1,6 +1,7 @@
 package btc
 
 import (
+	"bytes"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -9,6 +10,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/btcsuite/btcutil"
 
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
@@ -144,23 +147,6 @@ func (conn *conn) Balance(address string) (int64, error) {
 	return balance, nil
 }
 
-// WaitTillMined waits for the transactions to be mined, and gets the given
-// number of confirmations.
-func (conn *conn) WaitTillMined(txHash *chainhash.Hash, confirmations int64) error {
-	for {
-		mined, err := conn.Mined(txHash.String(), confirmations)
-		if err != nil {
-			return err
-		}
-
-		if mined {
-			return nil
-		}
-
-		time.Sleep(1 * time.Second)
-	}
-}
-
 func (conn *conn) GetUnspentOutputs(address string) (UnspentOutputs, error) {
 	resp, err := http.Get(fmt.Sprintf(conn.URL + "/unspent?active=" + address + "&confirmations=0"))
 	if err != nil {
@@ -173,9 +159,14 @@ func (conn *conn) GetUnspentOutputs(address string) (UnspentOutputs, error) {
 	return utxos, nil
 }
 
-func (conn *conn) PublishTransaction(signedTransaction []byte, postCon func() (bool, error)) error {
+func (conn *conn) PublishTransaction(stx *wire.MsgTx, postCon func() (bool, error)) error {
+	var stxBuffer bytes.Buffer
+	stxBuffer.Grow(stx.SerializeSize())
+	if err := stx.Serialize(&stxBuffer); err != nil {
+		return err
+	}
 	for {
-		if err := conn.publishTransaction(signedTransaction); err != nil {
+		if err := conn.publishTransaction(stxBuffer.Bytes()); err != nil {
 			return err
 		}
 		for i := 0; i < 20; i++ {
@@ -281,6 +272,35 @@ func (conn *conn) ScriptFunded(address string, value int64) (bool, int64, error)
 		return false, 0, err
 	}
 	return rawAddress.Received >= value, rawAddress.Received, nil
+}
+
+func (conn *conn) Transfer(to string, key keystore.BitcoinKey, val, fee int64) error {
+	tx := wire.NewMsgTx(2)
+	receiverAddress, err := btcutil.DecodeAddress(to, conn.ChainParams)
+	if err != nil {
+		return err
+	}
+
+	// create bitcoin script to pay to the given address
+	payToAddrScript, err := txscript.PayToAddrScript(receiverAddress)
+	if err != nil {
+		return NewErrRefund(err)
+	}
+
+	tx.AddTxOut(wire.NewTxOut(val, payToAddrScript))
+
+	stx, complete, err := conn.SignTransaction(tx, key, fee)
+	if err != nil || !complete {
+		return fmt.Errorf("Failed to sign the transaction")
+	}
+
+	return conn.PublishTransaction(stx, func() (bool, error) {
+		rawTx, err := conn.GetRawTransaction(stx.TxHash().String())
+		if err != nil {
+			return false, err
+		}
+		return rawTx.Version == 2, nil
+	})
 }
 
 type RawTransaction struct {

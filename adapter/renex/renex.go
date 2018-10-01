@@ -14,13 +14,13 @@ import (
 type renexAdapter struct {
 	state.State
 	keystore.Keystore
-	logger.Logger
+	logger.LoggerBuilder
 	swap.Swapper
 	renex.Network
 	Binder
 }
 
-func New(config config.Config, keystore keystore.Keystore, network renex.Network, state state.State, logger logger.Logger, binder Binder) renex.Adapter {
+func New(config config.Config, keystore keystore.Keystore, network renex.Network, state state.State, logger logger.LoggerBuilder, binder Binder) renex.Adapter {
 	return &renexAdapter{
 		Keystore: keystore,
 		State:    state,
