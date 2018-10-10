@@ -79,4 +79,4 @@ To open an atomic swap on RenEx:
 6. Open the "Exchange" tab and open a Sell BTC-ETH order for the intended amount.
 
 #### Note:
-The Bitcoin fees are set to high (500000 Satoshi) for faster trades in the testnet, it will be reverted to standard (10000 Satoshi) in the mainnet. 
+The Bitcoin fees are set to (10000 Satoshi). 
